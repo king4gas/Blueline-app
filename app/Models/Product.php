@@ -24,6 +24,7 @@ class Product extends Model
         'stock',  // nullable (khusus hardware)
         'speed',  // nullable (khusus service)
         'image',
+        'is_featured' // Kolom baru untuk menandai produk unggulan
     ];
 
     /**

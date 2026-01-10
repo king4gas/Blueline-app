@@ -12,6 +12,8 @@ use App\Http\Controllers\PageController;
 // === IMPORT MODEL & DB ===
 use App\Models\Order;
 use App\Models\User;
+use App\Models\Product;   // <--- TAMBAHAN
+use App\Models\Feedback;  // <--- TAMBAHAN
 use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -24,7 +26,24 @@ use Inertia\Inertia;
 */
 
 // === 1. PUBLIC ROUTES (Bisa diakses siapa saja) ===
-Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// UPDATE: Home Route sekarang mengirim data Produk & Feedback ke Welcome.vue
+Route::get('/', function () {
+    return Inertia::render('Welcome', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+        
+        // Ambil 4 Produk Unggulan
+        'featuredProducts' => Product::where('is_featured', true)->take(4)->get(),
+        
+        // Ambil 3 Feedback Terbaru (Rating 4 ke atas)
+        'feedbacks' => Feedback::where('rating', '>=', 4)
+                        ->latest()
+                        ->take(3)
+                        ->get()
+    ]);
+})->name('home');
+
 Route::get('/products', [ProductController::class, 'index'])->name('products.index');
 Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::post('/feedback', [PageController::class, 'storeFeedback'])->name('feedback.store');

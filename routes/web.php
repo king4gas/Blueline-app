@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\HomeController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
@@ -15,7 +14,6 @@ use App\Models\User;
 use App\Models\Product;
 use App\Models\Feedback;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -27,14 +25,17 @@ use Inertia\Inertia;
 
 // === 1. PUBLIC ROUTES (Bisa diakses siapa saja) ===
 
-// UPDATE: Home Route sekarang mengirim data Produk & Feedback ke Welcome.vue
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
         
-        // Ambil 4 Produk Unggulan
-        'featuredProducts' => Product::where('is_featured', true)->take(4)->get(),
+        // === LOGIKA BARU: BEST SELLER ===
+        // Mengambil 4 produk dengan jumlah pesanan terbanyak (otomatis)
+        'featuredProducts' => Product::withCount('orderItems')
+                                ->orderBy('order_items_count', 'desc') // Urutkan dari yang paling laku
+                                ->take(4)
+                                ->get(),
         
         // Ambil 3 Feedback Terbaru (Rating 4 ke atas)
         'feedbacks' => Feedback::where('rating', '>=', 4)
@@ -66,9 +67,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/cart/add', [CartController::class, 'store'])->name('cart.store');
     Route::delete('/cart/{id}', [CartController::class, 'destroy'])->name('cart.destroy');
     
-    // [BARU] Route untuk Update Quantity (+/-) di Cart
+    // Route untuk Update Quantity (+/-) di Cart
     Route::patch('/cart/{id}', [CartController::class, 'update'])->name('cart.update');
 
+    // Route Proses Checkout
     Route::post('/checkout/process', [CartController::class, 'checkout'])->name('checkout.process');
     
     // --- PESANAN SAYA ---
@@ -81,8 +83,7 @@ Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
     // === DASHBOARD DENGAN DATA REAL ===
     Route::get('/dashboard', function () {
         
-        // 1. Hitung Total Pendapatan
-        // Mengambil pesanan yang statusnya SUDAH DIVERIFIKASI, DIKIRIM, atau SELESAI
+        // 1. Hitung Total Pendapatan (Status: Verified/Shipped/Completed)
         $revenue = Order::whereIn('status', ['verified', 'shipped', 'completed'])
                         ->sum('total_price');
 
@@ -93,7 +94,6 @@ Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
         $totalCustomers = User::count(); 
 
         // 4. Hitung Produk Terjual
-        // Menghitung item dari pesanan yang statusnya sudah valid (Verified/Shipped/Completed)
         $productsSold = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->whereIn('orders.status', ['verified', 'shipped', 'completed'])

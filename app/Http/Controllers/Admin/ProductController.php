@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str; // Untuk buat slug otomatis
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -15,59 +15,76 @@ class ProductController extends Controller
     public function index()
     {
         return Inertia::render('Admin/Products/Index', [
-            'products' => Product::latest()->paginate(10)
+            // Kita gunakan get() agar diterima sebagai Array di Vue
+            'products' => Product::latest()->get()
         ]);
     }
 
-    // 2. Tampilkan Form Tambah Produk
+    // 2. Form Tambah
     public function create()
     {
         return Inertia::render('Admin/Products/Create');
     }
 
-    // 3. Proses Simpan Produk (Upload Gambar)
+    // 3. Simpan Produk
     public function store(Request $request)
     {
-        // Validasi
         $request->validate([
             'name' => 'required|string|max:255',
             'price' => 'required|numeric',
             'type' => 'required|in:hardware,service',
             'description' => 'required|string',
-            'image' => 'required|image|max:2048', // Maks 2MB
-            // Stok wajib jika hardware, Speed wajib jika service
-            'stock' => 'required_if:type,hardware|nullable|integer',
-            'speed' => 'required_if:type,service|nullable|string',
+            'image' => 'required|image|max:2048',
+            'stock' => 'nullable|integer',
+            'speed' => 'nullable|string',
+            'is_featured' => 'boolean',
         ]);
 
-        // Upload Gambar ke folder public/storage/products
         $imagePath = $request->file('image')->store('products', 'public');
 
-        // Simpan ke Database
         Product::create([
             'name' => $request->name,
-            'slug' => Str::slug($request->name) . '-' . Str::random(5), // Slug unik
+            'slug' => Str::slug($request->name) . '-' . Str::random(5),
             'price' => $request->price,
             'type' => $request->type,
             'description' => $request->description,
-            'image' => '/storage/' . $imagePath, // Simpan path lengkap agar mudah dipanggil
+            'image' => '/storage/' . $imagePath,
             'stock' => $request->stock,
             'speed' => $request->speed,
+            'is_featured' => $request->is_featured ?? false,
         ]);
 
         return redirect()->route('admin.products.index')->with('message', 'Produk berhasil ditambahkan!');
     }
 
-    // 4. Hapus Produk
-    public function destroy(Product $product)
+    // 4. Hapus Produk (VERSI AMAN ANTI-WHITE SCREEN)
+    public function destroy($id)
     {
-        // Hapus gambar lama agar hemat memori
-        if ($product->image) {
-            $path = str_replace('/storage/', '', $product->image);
-            Storage::disk('public')->delete($path);
+        // Cari manual agar tidak 404 jika ID salah, tapi return error
+        $product = Product::find($id);
+
+        if (!$product) {
+            return back()->withErrors(['error' => 'Produk tidak ditemukan.']);
         }
 
-        $product->delete();
-        return back()->with('message', 'Produk dihapus!');
+        try {
+            // 1. Cek & Hapus Gambar
+            if ($product->image) {
+                $path = str_replace('/storage/', '', $product->image);
+                if (Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
+            }
+
+            // 2. Hapus Database
+            $product->delete();
+
+            return back()->with('message', 'Produk berhasil dihapus!');
+
+        } catch (\Exception $e) {
+            // TANGKAP SEMUA ERROR (Termasuk Foreign Key / Relasi)
+            // Agar layar tidak putih, kita kembalikan user ke halaman sebelumnya dengan pesan
+            return back()->withErrors(['error' => 'GAGAL: Produk tidak bisa dihapus karena ada di riwayat pesanan pelanggan.']);
+        }
     }
 }

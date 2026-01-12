@@ -3,7 +3,9 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 
-const props = defineProps({ products: Object });
+// Kita gunakan Array karena controller menggunakan get()
+const props = defineProps({ products: Array });
+
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits: 0}).format(n);
 
 const deleteProduct = (id) => {
@@ -21,6 +23,15 @@ const deleteProduct = (id) => {
             router.delete(route('admin.products.destroy', id), {
                 onSuccess: () => {
                     Swal.fire('Terhapus!', 'Produk berhasil dihapus.', 'success');
+                },
+                // TAMBAHAN PENTING: Menangkap error dari backend agar tidak layar putih
+                onError: (errors) => {
+                    Swal.fire({
+                        title: 'Gagal!',
+                        text: errors.error || 'Produk tidak bisa dihapus karena sedang digunakan.',
+                        icon: 'error',
+                        confirmButtonColor: '#d33'
+                    });
                 }
             });
         }
@@ -45,12 +56,13 @@ const deleteProduct = (id) => {
         </template>
 
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-4">
-            <div v-if="products.data.length === 0" class="p-10 text-center">
+            <div v-if="products.length === 0" class="p-10 text-center">
                 <div class="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">📦</div>
                 <h3 class="text-slate-900 font-bold text-sm">Produk Kosong</h3>
                 <p class="text-slate-400 text-xs mb-4">Belum ada data produk.</p>
                 <Link :href="route('admin.products.create')" class="text-blue-600 text-sm font-bold hover:underline">+ Buat Baru</Link>
             </div>
+
             <div v-else class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
@@ -63,11 +75,18 @@ const deleteProduct = (id) => {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-sm">
-                        <tr v-for="product in products.data" :key="product.id" class="hover:bg-slate-50 transition duration-150">
+                        <tr v-for="product in products" :key="product.id" class="hover:bg-slate-50 transition duration-150">
                             <td class="px-6 py-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-md bg-gray-100 overflow-hidden border border-slate-200 flex-shrink-0"><img :src="product.image" class="h-full w-full object-cover"></div>
-                                    <div class="font-bold text-slate-700">{{ product.name }}</div>
+                                    <div class="h-10 w-10 rounded-md bg-gray-100 overflow-hidden border border-slate-200 flex-shrink-0">
+                                        <img :src="product.image" class="h-full w-full object-cover">
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-slate-700">{{ product.name }}</div>
+                                        <div v-if="product.is_featured" class="text-[10px] text-yellow-600 flex items-center gap-1 font-bold">
+                                            ★ Featured
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                             <td class="px-6 py-3">
@@ -80,19 +99,15 @@ const deleteProduct = (id) => {
                                 <span v-else class="text-blue-600 font-medium">{{ product.speed }}</span>
                             </td>
                             <td class="px-6 py-3 text-right">
-                                <button @click="deleteProduct(product.id)" class="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Hapus"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>
+                                <button @click="deleteProduct(product.id)" class="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Hapus">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                </button>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <div class="px-6 py-3 border-t border-slate-200 flex justify-center bg-slate-50" v-if="products.links.length > 3">
-                <div class="flex gap-1">
-                    <template v-for="(link, k) in products.links" :key="k">
-                        <Link v-if="link.url" :href="link.url" class="px-2.5 py-1 text-xs font-medium rounded transition" :class="link.active ? 'bg-white border border-slate-200 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'" v-html="link.label"/>
-                    </template>
-                </div>
+            
             </div>
-        </div>
     </AdminLayout>
 </template>

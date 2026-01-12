@@ -1,10 +1,10 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import UserLayout from '@/Layouts/UserLayout.vue';
 import { ref, computed } from 'vue';
 import Swal from 'sweetalert2';
 
-// === FITUR AGAR NAVBAR TIDAK REFRESH ===
+// Agar Navbar tidak refresh saat pindah halaman
 defineOptions({ layout: UserLayout });
 
 const props = defineProps({ carts: Array });
@@ -19,25 +19,65 @@ const form = useForm({
     payment_proof: null,
 });
 
+// === LOGIKA HITUNG TOTAL ===
 const grandTotal = computed(() => {
     let total = 0;
     if (props.carts) {
         props.carts.forEach(cart => {
-            if (selectedItems.value.includes(cart.id)) total += cart.product.price * cart.quantity;
+            // Hanya hitung item yang dicentang
+            if (selectedItems.value.includes(cart.id)) {
+                total += cart.product.price * cart.quantity;
+            }
         });
     }
     return total;
 });
 
-const toggleSelection = (id) => {
-    if (selectedItems.value.includes(id)) selectedItems.value = selectedItems.value.filter(item => item !== id);
-    else selectedItems.value.push(id);
+// Cek apakah semua item terpilih
+const isAllSelected = computed(() => {
+    return props.carts.length > 0 && selectedItems.value.length === props.carts.length;
+});
+
+// === ACTIONS ===
+
+// 1. Fitur Select All
+const toggleSelectAll = () => {
+    if (isAllSelected.value) {
+        selectedItems.value = [];
+    } else {
+        selectedItems.value = props.carts.map(cart => cart.id);
+    }
 };
 
+// 2. Fitur Toggle Per Item
+const toggleSelection = (id) => {
+    if (selectedItems.value.includes(id)) {
+        selectedItems.value = selectedItems.value.filter(item => item !== id);
+    } else {
+        selectedItems.value.push(id);
+    }
+};
+
+// 3. Fitur Update Quantity (+ / -)
+const updateQuantity = (cart, change) => {
+    const newQuantity = cart.quantity + change;
+    
+    // Jangan biarkan kurang dari 1
+    if (newQuantity < 1) return;
+
+    // Panggil route PATCH di backend
+    router.patch(route('cart.update', cart.id), { 
+        quantity: newQuantity 
+    }, {
+        preserveScroll: true, // Halaman tidak loncat ke atas
+    });
+};
+
+// 4. Buka Modal Checkout
 const openModal = () => {
     if (selectedItems.value.length === 0) {
         Swal.fire({
-            icon: 'info', title: 'Oops...', text: 'Silakan pilih minimal satu produk untuk di-checkout!',
+            icon: 'info', title: 'Oops...', text: 'Pilih minimal satu produk untuk checkout!',
             background: '#1e293b', color: '#fff', confirmButtonColor: '#0891b2',
         });
         return;
@@ -46,6 +86,7 @@ const openModal = () => {
     showPaymentModal.value = true;
 };
 
+// 5. Submit Order
 const submitOrder = () => {
     form.post(route('checkout.process'), {
         forceFormData: true, 
@@ -59,7 +100,7 @@ const submitOrder = () => {
             });
         },
         onError: () => {
-             Swal.fire({ title: 'Gagal!', text: 'Pastikan semua data terisi dengan benar.', icon: 'error', background: '#1e293b', color: '#fff', });
+             Swal.fire({ title: 'Gagal!', text: 'Pastikan data terisi benar.', icon: 'error', background: '#1e293b', color: '#fff', });
         }
     });
 };
@@ -88,22 +129,60 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
             <div v-else class="flex flex-col lg:flex-row gap-8">
                 
                 <div class="w-full lg:w-3/4 space-y-4">
-                    <div v-for="cart in carts" :key="cart.id" class="group bg-slate-900 p-4 rounded-3xl border border-slate-800 flex items-center gap-4 transition hover:border-cyan-500/30 hover:shadow-[0_0_20px_rgba(8,145,178,0.1)]">
-                        <div class="pl-2">
-                            <input type="checkbox" :value="cart.id" :checked="selectedItems.includes(cart.id)" @change="toggleSelection(cart.id)" class="w-6 h-6 text-cyan-600 bg-slate-950 border-slate-700 rounded-lg focus:ring-cyan-500 cursor-pointer transition checked:bg-cyan-600">
-                        </div>
-                        <div class="w-24 h-24 bg-slate-950 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-700">
-                            <img :src="cart.product.image" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition">
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="font-bold text-white truncate text-lg">{{ cart.product.name }}</h3>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 uppercase border border-slate-700">{{ cart.product.type }}</span>
-                                <span class="text-sm text-slate-500">Qty: {{ cart.quantity }}</span>
+                    
+                    <div class="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex items-center gap-3 mb-2">
+                         <input 
+                            type="checkbox" 
+                            :checked="isAllSelected" 
+                            @change="toggleSelectAll" 
+                            class="w-5 h-5 text-cyan-600 bg-slate-950 border-slate-700 rounded focus:ring-cyan-500 cursor-pointer transition checked:bg-cyan-600"
+                            id="selectAll"
+                        >
+                        <label for="selectAll" class="text-slate-300 font-bold text-sm cursor-pointer select-none hover:text-white transition">Pilih Semua Produk</label>
+                    </div>
+
+                    <div v-for="cart in carts" :key="cart.id" class="group bg-slate-900 p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row items-center gap-6 transition hover:border-cyan-500/30 hover:shadow-[0_0_20px_rgba(8,145,178,0.1)] relative">
+                        
+                        <div class="flex items-center gap-4 w-full sm:w-auto">
+                            <div class="pl-2">
+                                <input 
+                                    type="checkbox" 
+                                    :value="cart.id" 
+                                    :checked="selectedItems.includes(cart.id)" 
+                                    @change="toggleSelection(cart.id)" 
+                                    class="w-6 h-6 text-cyan-600 bg-slate-950 border-slate-700 rounded-lg focus:ring-cyan-500 cursor-pointer transition checked:bg-cyan-600"
+                                >
                             </div>
-                            <div class="text-lg font-black text-cyan-400 mt-2">{{ formatRupiah(cart.product.price) }}</div>
+                            <div class="w-24 h-24 bg-slate-950 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-700">
+                                <img :src="cart.product.image" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition">
+                            </div>
                         </div>
-                        <Link :href="route('cart.destroy', cart.id)" method="delete" as="button" class="p-3 rounded-full text-slate-600 hover:bg-slate-950 hover:text-red-500 transition" title="Hapus Item">
+
+                        <div class="flex-1 min-w-0 w-full text-center sm:text-left">
+                            <h3 class="font-bold text-white truncate text-lg">{{ cart.product.name }}</h3>
+                            <div class="flex items-center justify-center sm:justify-start gap-2 mt-1 mb-2">
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 uppercase border border-slate-700">{{ cart.product.type }}</span>
+                                <span class="text-sm text-slate-500">Stok Tersedia</span>
+                            </div>
+                            <div class="text-lg font-black text-cyan-400">{{ formatRupiah(cart.product.price) }}</div>
+                        </div>
+
+                        <div class="flex items-center gap-3 bg-slate-950 rounded-xl p-1 border border-slate-800">
+                            <button 
+                                @click="updateQuantity(cart, -1)" 
+                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition disabled:opacity-50"
+                                :disabled="cart.quantity <= 1"
+                            >-</button>
+                            
+                            <span class="w-8 text-center font-bold text-white text-sm select-none">{{ cart.quantity }}</span>
+                            
+                            <button 
+                                @click="updateQuantity(cart, 1)" 
+                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                            >+</button>
+                        </div>
+
+                        <Link :href="route('cart.destroy', cart.id)" method="delete" as="button" class="p-3 rounded-full text-slate-600 hover:bg-slate-950 hover:text-red-500 transition sm:ml-2" title="Hapus Item">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                         </Link>
                     </div>
@@ -120,7 +199,14 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                             <span class="text-slate-500 font-medium">Total Tagihan</span>
                             <span class="text-2xl font-black text-cyan-400">{{ formatRupiah(grandTotal) }}</span>
                         </div>
-                        <button @click="openModal" class="w-full py-4 rounded-full font-bold text-white transition-all shadow-lg active:scale-95 flex justify-center items-center gap-2" :class="selectedItems.length > 0 ? 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed'" :disabled="selectedItems.length === 0">Checkout Sekarang &rarr;</button>
+                        <button 
+                            @click="openModal" 
+                            class="w-full py-4 rounded-full font-bold text-white transition-all shadow-lg active:scale-95 flex justify-center items-center gap-2" 
+                            :class="selectedItems.length > 0 ? 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed'" 
+                            :disabled="selectedItems.length === 0"
+                        >
+                            Checkout ({{ selectedItems.length }}) &rarr;
+                        </button>
                     </div>
                 </div>
             </div>

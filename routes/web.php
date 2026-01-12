@@ -12,8 +12,8 @@ use App\Http\Controllers\PageController;
 // === IMPORT MODEL & DB ===
 use App\Models\Order;
 use App\Models\User;
-use App\Models\Product;   // <--- TAMBAHAN
-use App\Models\Feedback;  // <--- TAMBAHAN
+use App\Models\Product;
+use App\Models\Feedback;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -65,6 +65,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
     Route::post('/cart/add', [CartController::class, 'store'])->name('cart.store');
     Route::delete('/cart/{id}', [CartController::class, 'destroy'])->name('cart.destroy');
+    
+    // [BARU] Route untuk Update Quantity (+/-) di Cart
+    Route::patch('/cart/{id}', [CartController::class, 'update'])->name('cart.update');
+
     Route::post('/checkout/process', [CartController::class, 'checkout'])->name('checkout.process');
     
     // --- PESANAN SAYA ---

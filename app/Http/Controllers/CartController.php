@@ -5,29 +5,35 @@ namespace App\Http\Controllers;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class CartController extends Controller
 {
-    // 1. Tampilkan Halaman Keranjang
     public function index()
     {
         $carts = Cart::with('product')->where('user_id', auth()->id())->get();
-        return Inertia::render('Cart/Index', ['carts' => $carts]);
+        
+        // Hitung total harga semua item di keranjang (opsional, krn di frontend juga dihitung)
+        $total = $carts->sum(function($cart) {
+            return $cart->product->price * $cart->quantity;
+        });
+
+        return Inertia::render('Cart/Index', [
+            'carts' => $carts,
+            'total' => $total
+        ]);
     }
 
-    // 2. Tambah ke Keranjang
     public function store(Request $request)
     {
-        $product = Product::findOrFail($request->product_id);
+        $request->validate([
+            'product_id' => 'required|exists:products,id',
+        ]);
 
-        // Cek apakah produk sudah ada di cart user ini
         $cart = Cart::where('user_id', auth()->id())
-                    ->where('product_id', $product->id)
+                    ->where('product_id', $request->product_id)
                     ->first();
 
         if ($cart) {
@@ -35,80 +41,79 @@ class CartController extends Controller
         } else {
             Cart::create([
                 'user_id' => auth()->id(),
-                'product_id' => $product->id,
+                'product_id' => $request->product_id,
                 'quantity' => 1
             ]);
         }
 
-        return redirect()->back()->with('message', 'Masuk keranjang!');
+        return redirect()->back()->with('message', 'Produk ditambahkan ke keranjang');
     }
 
-    // 3. Hapus Item Keranjang
-    public function destroy($id)
+    // [BARU] Method Update Quantity
+    public function update(Request $request, $id)
     {
-        Cart::where('id', $id)->where('user_id', auth()->id())->delete();
+        $request->validate([
+            'quantity' => 'required|integer|min:1'
+        ]);
+
+        $cart = Cart::where('user_id', auth()->id())->where('id', $id)->firstOrFail();
+        $cart->update([
+            'quantity' => $request->quantity
+        ]);
+
         return redirect()->back();
     }
 
-    // 4. PROSES CHECKOUT (Payment Proof)
+    public function destroy($id)
+    {
+        $cart = Cart::where('user_id', auth()->id())->where('id', $id)->firstOrFail();
+        $cart->delete();
+
+        return redirect()->back();
+    }
+
     public function checkout(Request $request)
     {
         $request->validate([
-            'selected_cart_ids' => 'required|array', // ID cart yang dichecklist
+            'selected_cart_ids' => 'required|array|min:1',
             'address' => 'required|string',
             'phone' => 'required|string',
-            'payment_proof' => 'required|image|max:2048', // Wajib upload gambar
+            'payment_proof' => 'required|image|max:2048',
         ]);
 
         DB::transaction(function () use ($request) {
-            // Ambil item cart yang dipilih saja
+            $path = $request->file('payment_proof')->store('payment_proofs', 'public');
+            
+            // Ambil item yang DIPILIH (Checklist) saja
             $cartItems = Cart::with('product')
-                ->whereIn('id', $request->selected_cart_ids)
                 ->where('user_id', auth()->id())
+                ->whereIn('id', $request->selected_cart_ids)
                 ->get();
 
-            if ($cartItems->isEmpty()) return;
+            $totalPrice = $cartItems->sum(fn($item) => $item->product->price * $item->quantity);
 
-            // Hitung Total
-            $totalPrice = 0;
-            foreach ($cartItems as $item) {
-                $totalPrice += $item->product->price * $item->quantity;
-            }
-
-            // Upload Bukti Transfer
-            $path = $request->file('payment_proof')->store('payment_proofs', 'public');
-
-            // Buat Order Header
             $order = Order::create([
                 'user_id' => auth()->id(),
-                'invoice_number' => 'INV-' . strtoupper(Str::random(10)),
                 'total_price' => $totalPrice,
-                'status' => 'pending_verification', // Masuk admin panel nanti
+                'status' => 'pending_verification',
                 'payment_proof' => $path,
-                'address' => $request->address,
-                'phone' => $request->phone,
+                'shipping_address' => $request->address, // Pastikan kolom ini ada di DB orders
+                // Jika tidak ada kolom shipping_address/phone, simpan di notes atau buat kolom baru
             ]);
 
-            // Pindahkan Cart ke OrderItem
             foreach ($cartItems as $item) {
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $item->product_id,
-                    'product_name' => $item->product->name,
-                    'price' => $item->product->price,
                     'quantity' => $item->quantity,
+                    'price' => $item->product->price,
                 ]);
-
-                // Kurangi stok jika hardware
-                if($item->product->type === 'hardware') {
-                     $item->product->decrement('stock', $item->quantity);
-                }
             }
 
-            // Hapus item dari keranjang setelah dibeli
+            // Hapus item yang sudah di-checkout dari keranjang
             Cart::whereIn('id', $request->selected_cart_ids)->delete();
         });
 
-        return redirect()->route('home')->with('message', 'Pesanan dikirim! Menunggu verifikasi admin.');
+        return redirect()->route('my-orders');
     }
 }

@@ -11,22 +11,18 @@ use Inertia\Inertia;
 
 class ProductController extends Controller
 {
-    // 1. Tampilkan Daftar Produk
     public function index()
     {
         return Inertia::render('Admin/Products/Index', [
-            // Kita gunakan get() agar diterima sebagai Array di Vue
             'products' => Product::latest()->get()
         ]);
     }
 
-    // 2. Form Tambah
     public function create()
     {
         return Inertia::render('Admin/Products/Create');
     }
 
-    // 3. Simpan Produk
     public function store(Request $request)
     {
         $request->validate([
@@ -35,8 +31,8 @@ class ProductController extends Controller
             'type' => 'required|in:hardware,service',
             'description' => 'required|string',
             'image' => 'required|image|max:2048',
-            'stock' => 'nullable|integer',
-            'speed' => 'nullable|string',
+            'stock' => 'required_if:type,hardware|nullable|integer',
+            'speed' => 'required_if:type,service|nullable|string',
             'is_featured' => 'boolean',
         ]);
 
@@ -57,34 +53,74 @@ class ProductController extends Controller
         return redirect()->route('admin.products.index')->with('message', 'Produk berhasil ditambahkan!');
     }
 
-    // 4. Hapus Produk (VERSI AMAN ANTI-WHITE SCREEN)
-    public function destroy($id)
+    // === EDIT FORM ===
+    public function edit(Product $product)
     {
-        // Cari manual agar tidak 404 jika ID salah, tapi return error
-        $product = Product::find($id);
+        return Inertia::render('Admin/Products/Edit', [
+            'product' => $product
+        ]);
+    }
 
-        if (!$product) {
-            return back()->withErrors(['error' => 'Produk tidak ditemukan.']);
+    // === UPDATE PROCESS ===
+    public function update(Request $request, Product $product)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric',
+            'type' => 'required|in:hardware,service',
+            'description' => 'required|string',
+            'image' => 'nullable|image|max:2048', // Boleh kosong saat edit
+            'stock' => 'required_if:type,hardware|nullable|integer',
+            'speed' => 'required_if:type,service|nullable|string',
+            'is_featured' => 'boolean',
+        ]);
+
+        $data = [
+            'name' => $request->name,
+            'slug' => Str::slug($request->name) . '-' . Str::random(5),
+            'price' => $request->price,
+            'type' => $request->type,
+            'description' => $request->description,
+            'stock' => $request->stock,
+            'speed' => $request->speed,
+            'is_featured' => $request->is_featured ?? false,
+        ];
+
+        // Cek jika ada gambar baru
+        if ($request->hasFile('image')) {
+            // Hapus gambar lama
+            if ($product->image) {
+                $oldPath = str_replace('/storage/', '', $product->image);
+                if (Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
+                }
+            }
+            // Upload baru
+            $imagePath = $request->file('image')->store('products', 'public');
+            $data['image'] = '/storage/' . $imagePath;
         }
 
+        $product->update($data);
+
+        return redirect()->route('admin.products.index')->with('message', 'Produk berhasil diperbarui!');
+    }
+
+    public function destroy($id)
+    {
+        $product = Product::find($id);
+        if (!$product) return back()->withErrors(['error' => 'Produk tidak ditemukan.']);
+
         try {
-            // 1. Cek & Hapus Gambar
             if ($product->image) {
                 $path = str_replace('/storage/', '', $product->image);
                 if (Storage::disk('public')->exists($path)) {
                     Storage::disk('public')->delete($path);
                 }
             }
-
-            // 2. Hapus Database
             $product->delete();
-
             return back()->with('message', 'Produk berhasil dihapus!');
-
         } catch (\Exception $e) {
-            // TANGKAP SEMUA ERROR (Termasuk Foreign Key / Relasi)
-            // Agar layar tidak putih, kita kembalikan user ke halaman sebelumnya dengan pesan
-            return back()->withErrors(['error' => 'GAGAL: Produk tidak bisa dihapus karena ada di riwayat pesanan pelanggan.']);
+            return back()->withErrors(['error' => 'GAGAL: Produk tidak bisa dihapus karena ada di riwayat pesanan.']);
         }
     }
 }

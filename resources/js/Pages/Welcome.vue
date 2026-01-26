@@ -2,8 +2,9 @@
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import UserLayout from '@/Layouts/UserLayout.vue';
 import Swal from 'sweetalert2';
+import { ref } from 'vue'; // Tambahkan import ref
 
-// === FITUR AGAR NAVBAR TIDAK REFRESH ===
+// === CONFIG LAYOUT ===
 defineOptions({ layout: UserLayout });
 
 const props = defineProps({ 
@@ -14,6 +15,7 @@ const props = defineProps({
 const user = usePage().props.auth.user;
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
+// === LOGIC TOAST & ORDER ===
 const Toast = Swal.mixin({
     toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
     didOpen: (toast) => { toast.onmouseenter = Swal.stopTimer; toast.onmouseleave = Swal.resumeTimer; }
@@ -27,6 +29,56 @@ const handleOrder = (product) => {
     } else {
         router.post(route('cart.store'), { product_id: product.id }, { preserveScroll: true, onSuccess: () => Toast.fire({ icon: 'success', title: 'Masuk keranjang!' }) });
     }
+};
+
+// ==========================================
+// === LOGIC DUMMY SPEED TEST (185 Mbps) ===
+// ==========================================
+const speed = ref(0);
+const isTesting = ref(false);
+const testStatus = ref('IDLE'); // IDLE, TESTING, COMPLETED
+const progressRotation = ref(0); // Rotasi gauge (0 - 180 derajat)
+
+const startSpeedTest = () => {
+    if (isTesting.value) return;
+    
+    isTesting.value = true;
+    testStatus.value = 'TESTING';
+    speed.value = 0;
+    progressRotation.value = 0;
+
+    // Phase 1: Inisialisasi (0-1 detik) - Angka kecil & acak
+    let phase1 = setInterval(() => {
+        speed.value = Math.floor(Math.random() * 40);
+        progressRotation.value = (speed.value / 200) * 180;
+    }, 80);
+
+    // Phase 2: Boosting (Setelah 1 detik) - Angka naik cepat
+    setTimeout(() => {
+        clearInterval(phase1);
+        
+        let currentSpeed = 40;
+        let phase2 = setInterval(() => {
+            // Naikkan kecepatan
+            currentSpeed += Math.random() * 12;
+            
+            // Visual limit agar tidak melebihi 200 saat proses
+            if (currentSpeed > 190) currentSpeed = 175;
+            
+            speed.value = Math.floor(currentSpeed);
+            progressRotation.value = Math.min((currentSpeed / 200) * 180, 180);
+        }, 50);
+
+        // Phase 3: Finish (Tepat di 185 Mbps setelah total 4 detik)
+        setTimeout(() => {
+            clearInterval(phase2);
+            speed.value = 185; // TARGET DUMMY
+            progressRotation.value = (185 / 200) * 180; // Posisi gauge
+            isTesting.value = false;
+            testStatus.value = 'COMPLETED';
+        }, 3000);
+
+    }, 1000);
 };
 </script>
 
@@ -55,14 +107,81 @@ const handleOrder = (product) => {
                 <Link :href="route('products.index')" class="px-10 py-4 bg-cyan-600 text-white rounded-full font-bold text-lg hover:bg-cyan-500 hover:scale-105 transition duration-300 shadow-[0_0_20px_rgba(8,145,178,0.4)]">
                     Lihat Paket Internet &rarr;
                 </Link>
-                <a href="#coverage" class="px-10 py-4 bg-slate-800/50 backdrop-blur text-white border border-slate-600 rounded-full font-bold text-lg hover:bg-slate-700 hover:border-slate-500 transition">
-                    Cek Ketersediaan
+                <a href="#speedtest" class="px-10 py-4 bg-slate-800/50 backdrop-blur text-white border border-slate-600 rounded-full font-bold text-lg hover:bg-slate-700 hover:border-slate-500 transition">
+                    Test Kecepatan
                 </a>
             </div>
         </div>
     </div>
 
-    <div id="coverage" class="py-32 bg-slate-950 relative border-t border-slate-900">
+    <div id="speedtest" class="bg-slate-950 py-24 relative overflow-hidden border-t border-slate-900">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="max-w-4xl mx-auto px-6 text-center relative z-10">
+            <h2 class="text-3xl md:text-4xl font-black text-white mb-4">
+                Seberapa Cepat <span class="text-cyan-400">BlueLine?</span>
+            </h2>
+            <p class="text-slate-400 mb-12">Buktikan sendiri performa jaringan fiber optik kami.</p>
+
+            <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden">
+                
+                <div class="relative w-64 h-32 mx-auto overflow-hidden mb-6">
+                    <div class="absolute top-0 left-0 w-64 h-64 rounded-full border-[24px] border-slate-800 box-border"></div>
+                    
+                    <div class="absolute top-0 left-0 w-64 h-64 rounded-full border-[24px] border-cyan-500 box-border transition-transform duration-100 ease-linear origin-center"
+                            style="border-bottom-color: transparent; border-right-color: transparent;"
+                            :style="{ transform: `rotate(${progressRotation - 135}deg)` }">
+                    </div>
+                    
+                    <div class="absolute top-0 left-0 w-64 h-64 rounded-full border-[24px] border-slate-800/0 box-border" style="clip-path: polygon(0 50%, 100% 50%, 100% 100%, 0% 100%); background: transparent;"></div>
+                </div>
+
+                <div class="-mt-20 mb-10 relative z-20">
+                    <div class="text-7xl sm:text-8xl font-black text-white tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]">
+                        {{ speed }}
+                    </div>
+                    <div class="text-cyan-400 font-bold text-xl uppercase tracking-[0.2em] mt-2">Mbps</div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4 border-t border-slate-800 pt-8 mb-8">
+                    <div>
+                        <div class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Ping</div>
+                        <div class="text-white font-mono text-xl sm:text-2xl font-bold">
+                            {{ isTesting ? Math.floor(Math.random() * 20) + 5 : (testStatus === 'COMPLETED' ? '4' : '-') }} <span class="text-sm text-slate-600">ms</span>
+                        </div>
+                    </div>
+                    <div class="border-l border-r border-slate-800">
+                        <div class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Upload</div>
+                        <div class="text-white font-mono text-xl sm:text-2xl font-bold">
+                            {{ isTesting ? Math.floor(speed / 1.5) : (testStatus === 'COMPLETED' ? '95' : '-') }} <span class="text-sm text-slate-600">Mbps</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Jitter</div>
+                        <div class="text-white font-mono text-xl sm:text-2xl font-bold">
+                            {{ isTesting ? Math.floor(Math.random() * 5) : (testStatus === 'COMPLETED' ? '1' : '-') }} <span class="text-sm text-slate-600">ms</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button 
+                    @click="startSpeedTest" 
+                    :disabled="isTesting"
+                    class="w-full sm:w-auto px-12 py-4 rounded-xl font-black text-lg transition-all duration-300 relative group overflow-hidden"
+                    :class="isTesting ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_25px_rgba(8,145,178,0.4)] hover:shadow-[0_0_40px_rgba(8,145,178,0.6)] hover:-translate-y-1'"
+                >
+                    <span class="relative z-10 flex items-center justify-center gap-2">
+                        <svg v-if="!isTesting" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <svg v-else class="animate-spin" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                        {{ isTesting ? 'MENGUJI JARINGAN...' : 'MULAI SPEED TEST' }}
+                    </span>
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="coverage" class="py-32 bg-slate-900 relative border-t border-slate-900">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-20">
                 <h2 class="text-4xl font-black text-white mb-4">Jangkauan Luas</h2>
@@ -87,7 +206,7 @@ const handleOrder = (product) => {
         </div>
     </div>
 
-    <div class="py-32 bg-slate-900">
+    <div class="py-32 bg-slate-950 border-t border-slate-900">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-4">
                 <div>
@@ -121,7 +240,7 @@ const handleOrder = (product) => {
         </div>
     </div>
     
-    <div class="py-32 bg-slate-950 border-t border-slate-900">
+    <div class="py-32 bg-slate-900 border-t border-slate-900">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-black text-white mb-4 tracking-tight">Apa Kata Mereka?</h2>
@@ -136,10 +255,10 @@ const handleOrder = (product) => {
                     <p class="text-slate-300 text-lg italic mb-6 flex-grow leading-relaxed">"{{ feedback.message }}"</p>
                     <div class="flex items-center gap-4 mt-auto border-t border-slate-800 pt-4">
                         <div class="w-10 h-10 rounded-full bg-cyan-900/50 text-cyan-400 font-bold flex items-center justify-center border border-cyan-800">
-                            {{ feedback.name.charAt(0).toUpperCase() }}
+                            {{ feedback.user ? feedback.user.name.charAt(0).toUpperCase() : 'U' }}
                         </div>
                         <div>
-                            <h4 class="font-bold text-white">{{ feedback.name }}</h4>
+                            <h4 class="font-bold text-white">{{ feedback.user ? feedback.user.name : 'Pengguna' }}</h4>
                             <p class="text-xs text-slate-500">Pelanggan Terverifikasi</p>
                         </div>
                     </div>

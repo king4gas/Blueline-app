@@ -2,18 +2,30 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
-    protected $guarded = ['id'];
+    use HasFactory;
 
-    // Order punya banyak Item
-    public function items() {
-        return $this->hasMany(OrderItem::class);
+    protected $fillable = [
+        'user_id',
+        'invoice_number',
+        'total_price',
+        'status',
+        'payment_proof',
+        'address', 
+        'phone', // <--- TAMBAHAN: Agar kolom phone bisa diisi
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
-    public function user() {
-        return $this->belongsTo(User::class);
+    public function items()
+    {
+        return $this->hasMany(OrderItem::class);
     }
 }

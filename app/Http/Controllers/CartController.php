@@ -4,9 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Cart;
 use App\Models\Order;
-use App\Models\OrderItem;
+use App\Models\OrderItem; // <--- Pastikan ini ada
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str; // <--- Pastikan ini ada
 use Inertia\Inertia;
 
 class CartController extends Controller
@@ -15,7 +16,6 @@ class CartController extends Controller
     {
         $carts = Cart::with('product')->where('user_id', auth()->id())->get();
         
-        // Hitung total harga semua item di keranjang (opsional, krn di frontend juga dihitung)
         $total = $carts->sum(function($cart) {
             return $cart->product->price * $cart->quantity;
         });
@@ -49,7 +49,6 @@ class CartController extends Controller
         return redirect()->back()->with('message', 'Produk ditambahkan ke keranjang');
     }
 
-    // [BARU] Method Update Quantity
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -72,8 +71,10 @@ class CartController extends Controller
         return redirect()->back();
     }
 
+    // === CHECKOUT FINAL (SUDAH DIPERBAIKI) ===
     public function checkout(Request $request)
     {
+        // 1. Validasi Input
         $request->validate([
             'selected_cart_ids' => 'required|array|min:1',
             'address' => 'required|string',
@@ -82,35 +83,44 @@ class CartController extends Controller
         ]);
 
         DB::transaction(function () use ($request) {
+            // 2. Upload Gambar
             $path = $request->file('payment_proof')->store('payment_proofs', 'public');
             
-            // Ambil item yang DIPILIH (Checklist) saja
+            // 3. Ambil Keranjang
             $cartItems = Cart::with('product')
                 ->where('user_id', auth()->id())
                 ->whereIn('id', $request->selected_cart_ids)
                 ->get();
 
+            // 4. Hitung Total
             $totalPrice = $cartItems->sum(fn($item) => $item->product->price * $item->quantity);
+            
+            // 5. Buat Nomor Invoice
+            $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
 
+            // 6. Simpan Order
             $order = Order::create([
                 'user_id' => auth()->id(),
+                'invoice_number' => $invoiceNumber,
                 'total_price' => $totalPrice,
                 'status' => 'pending_verification',
                 'payment_proof' => $path,
-                'shipping_address' => $request->address, // Pastikan kolom ini ada di DB orders
-                // Jika tidak ada kolom shipping_address/phone, simpan di notes atau buat kolom baru
+                'address' => $request->address,
+                'phone' => $request->phone,
             ]);
 
+            // 7. Simpan Detail Item
             foreach ($cartItems as $item) {
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $item->product_id,
+                    'product_name' => $item->product->name, // <--- Perbaikan Terakhir
                     'quantity' => $item->quantity,
                     'price' => $item->product->price,
                 ]);
             }
 
-            // Hapus item yang sudah di-checkout dari keranjang
+            // 8. Hapus dari Keranjang
             Cart::whereIn('id', $request->selected_cart_ids)->delete();
         });
 

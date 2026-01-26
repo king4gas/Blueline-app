@@ -3,7 +3,6 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 
-// Kita gunakan Array karena controller menggunakan get()
 const props = defineProps({ products: Array });
 
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits: 0}).format(n);
@@ -24,11 +23,10 @@ const deleteProduct = (id) => {
                 onSuccess: () => {
                     Swal.fire('Terhapus!', 'Produk berhasil dihapus.', 'success');
                 },
-                // TAMBAHAN PENTING: Menangkap error dari backend agar tidak layar putih
                 onError: (errors) => {
                     Swal.fire({
                         title: 'Gagal!',
-                        text: errors.error || 'Produk tidak bisa dihapus karena sedang digunakan.',
+                        text: errors.error || 'Produk tidak bisa dihapus.',
                         icon: 'error',
                         confirmButtonColor: '#d33'
                     });
@@ -99,15 +97,20 @@ const deleteProduct = (id) => {
                                 <span v-else class="text-blue-600 font-medium">{{ product.speed }}</span>
                             </td>
                             <td class="px-6 py-3 text-right">
-                                <button @click="deleteProduct(product.id)" class="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Hapus">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                                </button>
+                                <div class="flex items-center justify-end gap-2">
+                                    <Link :href="route('admin.products.edit', product.id)" class="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                                    </Link>
+
+                                    <button @click="deleteProduct(product.id)" class="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Hapus">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            
-            </div>
+        </div>
     </AdminLayout>
 </template>

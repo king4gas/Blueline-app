@@ -7,6 +7,8 @@ use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\ComplaintController; // Tambahkan import ini agar rapi
+use App\Http\Controllers\OrderReturnController; // Tambahkan import ini agar rapi
 
 // === IMPORT MODEL & DB ===
 use App\Models\Order;
@@ -30,18 +32,19 @@ Route::get('/', function () {
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
         
-        // === LOGIKA BARU: BEST SELLER ===
-        // Mengambil 4 produk dengan jumlah pesanan terbanyak (otomatis)
+        // === BEST SELLER (Produk Terlaris) ===
         'featuredProducts' => Product::withCount('orderItems')
-                                ->orderBy('order_items_count', 'desc') // Urutkan dari yang paling laku
+                                ->orderBy('order_items_count', 'desc')
                                 ->take(4)
                                 ->get(),
         
-        // Ambil 3 Feedback Terbaru (Rating 4 ke atas)
-        'feedbacks' => Feedback::where('rating', '>=', 4)
-                        ->latest()
-                        ->take(3)
-                        ->get()
+        // === PERBAIKAN DISINI ===
+        // Tambahkan with('user') agar nama user bisa muncul di testimoni
+        'feedbacks' => Feedback::with('user') 
+                                ->where('rating', '>=', 4)
+                                ->latest()
+                                ->take(3)
+                                ->get()
     ]);
 })->name('home');
 
@@ -51,6 +54,9 @@ Route::post('/feedback', [PageController::class, 'storeFeedback'])->name('feedba
 
 // === 2. AUTHENTICATED ROUTES (Harus Login) ===
 Route::middleware(['auth', 'verified'])->group(function () {
+    
+    // Fitur CS / Laporan Masalah
+    Route::post('/complaints', [ComplaintController::class, 'store'])->name('complaints.store');
     
     // Dashboard User (Opsional)
     Route::get('/dashboard', function () {
@@ -66,40 +72,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
     Route::post('/cart/add', [CartController::class, 'store'])->name('cart.store');
     Route::delete('/cart/{id}', [CartController::class, 'destroy'])->name('cart.destroy');
-    
-    // Route untuk Update Quantity (+/-) di Cart
     Route::patch('/cart/{id}', [CartController::class, 'update'])->name('cart.update');
 
     // Route Proses Checkout
     Route::post('/checkout/process', [CartController::class, 'checkout'])->name('checkout.process');
     
-    // --- PESANAN SAYA ---
+    // --- PESANAN SAYA & RETUR ---
     Route::get('/my-orders', [OrderController::class, 'index'])->name('my-orders');
+    Route::post('/orders/{order}/return', [OrderReturnController::class, 'store'])->name('orders.return');
 });
 
 // === 3. ADMIN ROUTES (Khusus Admin) ===
 Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
 
-    // === DASHBOARD DENGAN DATA REAL ===
+    // === DASHBOARD ADMIN ===
     Route::get('/dashboard', function () {
         
-        // 1. Hitung Total Pendapatan (Status: Verified/Shipped/Completed)
-        $revenue = Order::whereIn('status', ['verified', 'shipped', 'completed'])
-                        ->sum('total_price');
+        // 1. Total Pendapatan
+        $revenue = Order::whereIn('status', ['verified', 'shipped', 'completed'])->sum('total_price');
 
-        // 2. Hitung Pesanan Baru (Menunggu Verifikasi)
+        // 2. Pesanan Pending
         $pendingOrders = Order::where('status', 'pending_verification')->count();
 
-        // 3. Hitung Total Pelanggan
+        // 3. Total Pelanggan
         $totalCustomers = User::count(); 
 
-        // 4. Hitung Produk Terjual
+        // 4. Produk Terjual
         $productsSold = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->whereIn('orders.status', ['verified', 'shipped', 'completed'])
             ->sum('order_items.quantity');
 
-        // 5. Ambil 5 Pesanan Terbaru
+        // 5. Pesanan Terbaru
         $recentOrders = Order::with('user')->latest()->take(5)->get();
 
         return Inertia::render('Admin/Dashboard', [
@@ -121,6 +125,9 @@ Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
     Route::get('/products', [AdminProductController::class, 'index'])->name('admin.products.index');
     Route::get('/products/create', [AdminProductController::class, 'create'])->name('admin.products.create');
     Route::post('/products', [AdminProductController::class, 'store'])->name('admin.products.store');
+
+    Route::get('/products/{product}/edit', [AdminProductController::class, 'edit'])->name('admin.products.edit');
+    Route::post('/products/{product}', [AdminProductController::class, 'update'])->name('admin.products.update');
     Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->name('admin.products.destroy');
 });
 

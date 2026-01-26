@@ -2,13 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class OrderItem extends Model
 {
-    protected $guarded = ['id'];
+    use HasFactory;
 
-    public function product() {
+    protected $fillable = [
+        'order_id',
+        'product_id',
+        'product_name', // <--- Wajib ada
+        'quantity',
+        'price',
+    ];
+
+    public function product()
+    {
         return $this->belongsTo(Product::class);
     }
 }

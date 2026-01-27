@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Providers\RouteServiceProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,18 +34,16 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        // === MODIFIKASI DIMULAI DARI SINI ===
+        // === LOGIKA REDIRECT BERDASARKAN ROLE ===
         
-        // Cek Role User
+        // Cek apakah role user adalah 'admin'
         if ($request->user()->role === 'admin') {
-            // Jika Admin, arahkan ke Dashboard Admin
+            // Jika Admin, lempar ke Dashboard Admin
             return redirect()->intended(route('admin.dashboard'));
         }
 
-        // Jika User Biasa, arahkan kembali ke Home (Halaman Belanja)
+        // Jika User Biasa ('user'), lempar ke Halaman Utama (Home)
         return redirect()->intended(route('home'));
-        
-        // === MODIFIKASI SELESAI ===
     }
 
     /**

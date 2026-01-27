@@ -9,29 +9,55 @@ use Inertia\Inertia;
 
 class OrderController extends Controller
 {
-    // 1. Tampilkan Semua Pesanan
-    public function index()
+    public function index(Request $request)
     {
-        $orders = Order::with(['user', 'items']) // Ambil data user & item sekaligus
-            ->latest()
-            ->paginate(10); // 10 per halaman
+        $query = Order::with('user', 'items.product')->latest();
+
+        // Filter Tab (Pending, Shipping, Completed, Returned)
+        if ($request->has('status') && $request->status !== 'all') {
+            if ($request->status === 'return_requested') {
+                $query->where('status', 'return_requested');
+            } else {
+                $query->where('status', $request->status);
+            }
+        }
 
         return Inertia::render('Admin/Orders/Index', [
-            'orders' => $orders
+            'orders' => $query->get(),
+            'filterStatus' => $request->status ?? 'all'
         ]);
     }
 
-    // 2. Update Status Pesanan (Verifikasi/Kirim/Tolak)
+    // Update Status Biasa (Kirim Barang, Selesai, dll)
     public function update(Request $request, Order $order)
     {
+        $request->validate(['status' => 'required']);
+        $order->update(['status' => $request->status]);
+        return back()->with('message', 'Status pesanan diperbarui');
+    }
+
+    // === FITUR BARU: ACC / TOLAK RETUR ===
+    public function verifyReturn(Request $request, Order $order)
+    {
         $request->validate([
-            'status' => 'required|in:pending_verification,verified,shipped,completed,rejected'
+            'decision' => 'required|in:approve,reject',
+            'rejection_reason' => 'nullable|string'
         ]);
 
-        $order->update([
-            'status' => $request->status
-        ]);
+        if ($request->decision === 'approve') {
+            // Jika diterima, status jadi 'returned'
+            $order->update([
+                'status' => 'returned'
+            ]);
+            // OPSI: Di sini bisa tambahkan logic kembalikan stok produk jika perlu
+        } else {
+            // Jika ditolak, status kembali 'completed' atau 'return_rejected'
+            $order->update([
+                'status' => 'return_rejected',
+                'rejection_reason' => $request->rejection_reason
+            ]);
+        }
 
-        return back()->with('message', 'Status pesanan berhasil diperbarui!');
+        return back()->with('message', 'Keputusan retur berhasil disimpan.');
     }
 }

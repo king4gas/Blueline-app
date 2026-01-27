@@ -3,33 +3,39 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
-use App\Models\OrderReturn;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class OrderReturnController extends Controller
 {
     public function store(Request $request, Order $order)
     {
+        // 1. Validasi Input
         $request->validate([
-            'reason' => 'required|string|max:255',
-            'evidence' => 'required|image|max:2048', // Wajib upload foto bukti
+            'reason' => 'required|string',
+            'evidence' => 'required|image|max:2048' // Maksimal 2MB
         ]);
 
-        // Cek apakah sudah pernah mengajukan untuk order ini
-        if(OrderReturn::where('order_id', $order->id)->exists()) {
-            return back()->withErrors(['error' => 'Anda sudah mengajukan pengembalian untuk pesanan ini.']);
+        // 2. Pastikan order milik user yang login (Keamanan)
+        if ($order->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized action.');
         }
 
-        $path = $request->file('evidence')->store('returns', 'public');
+        // 3. Upload Foto Bukti
+        $path = null;
+        if ($request->hasFile('evidence')) {
+            $path = $request->file('evidence')->store('returns', 'public');
+        }
 
-        OrderReturn::create([
-            'order_id' => $order->id,
-            'user_id' => auth()->id(),
-            'reason' => $request->reason,
-            'evidence' => '/storage/' . $path,
-            'status' => 'pending'
+        // 4. UPDATE DATABASE (PENTING!)
+        // Kita harus mengubah status menjadi 'return_requested' agar Admin bisa melihatnya.
+        $order->update([
+            'status' => 'return_requested', // <--- INI KUNCINYA
+            'return_reason' => $request->reason,
+            'return_evidence' => $path,
         ]);
 
+        // 5. Redirect kembali dengan pesan sukses
         return back()->with('message', 'Pengajuan pengembalian berhasil dikirim. Tunggu konfirmasi Admin.');
     }
 }

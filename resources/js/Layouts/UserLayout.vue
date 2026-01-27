@@ -1,78 +1,105 @@
 <script setup>
-import { ref, computed } from 'vue';
-import { Link, usePage, useForm, router } from '@inertiajs/vue3';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { Link, usePage, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import Swal from 'sweetalert2';
 
-// === 1. LOGIC UMUM (NAVBAR & AUTH) ===
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const showingNavigationDropdown = ref(false);
 
-// Logout Function
+// === LOGIC NAVBAR & AUTH ===
 const logout = () => {
     router.post(route('logout'));
 };
 
-// === 2. LOGIC FITUR CS / LAPORAN MASALAH ===
-const showCsModal = ref(false);
+// === LOGIC CHAT ===
+const isChatOpen = ref(false);
+const chatMessages = ref([]);
+const chatInput = ref('');
+const chatContainer = ref(null);
+const isSending = ref(false);
+let pollingInterval = null;
 
-const csForm = useForm({
-    subject: '',
-    message: ''
-});
-
-// Fungsi Buka Modal (Cek Login Dulu)
-const openCsModal = () => {
+const toggleChat = () => {
+    // Cek Login Dulu
     if (!user.value) {
         Swal.fire({
             icon: 'info',
             title: 'Login Diperlukan',
-            text: 'Silakan login terlebih dahulu untuk melaporkan kendala.',
-            background: '#1e293b', // Dark theme alert
-            color: '#fff',
-            showCancelButton: true,
-            confirmButtonText: 'Login Sekarang',
-            cancelButtonText: 'Nanti',
-            confirmButtonColor: '#0891b2',
-            cancelButtonColor: '#64748b'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                router.visit(route('login'));
-            }
+            text: 'Silakan login untuk chat dengan Admin.',
+            background: '#1e293b', color: '#fff',
+            confirmButtonColor: '#0891b2'
         });
         return;
     }
-    showCsModal.value = true;
+
+    isChatOpen.value = !isChatOpen.value;
+    if (isChatOpen.value) {
+        fetchMessages();
+        startPolling();
+        scrollToBottom();
+    } else {
+        stopPolling();
+    }
 };
 
-// Fungsi Kirim Laporan
-const submitComplaint = () => {
-    csForm.post(route('complaints.store'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showCsModal.value = false;
-            csForm.reset();
-            Swal.fire({
-                title: 'Laporan Terkirim!',
-                text: 'Tim support kami akan segera menghubungi Anda.',
-                icon: 'success',
-                background: '#1e293b',
-                color: '#fff',
-                confirmButtonColor: '#0891b2'
-            });
-        },
-        onError: () => {
-            // Error validation akan muncul di form
-            Swal.fire({
-                title: 'Gagal',
-                text: 'Mohon lengkapi formulir dengan benar.',
-                icon: 'error',
-                background: '#1e293b',
-                color: '#fff'
-            });
+const fetchMessages = async () => {
+    try {
+        const response = await axios.get(route('chat.index'));
+        if (JSON.stringify(response.data) !== JSON.stringify(chatMessages.value)) {
+            chatMessages.value = response.data;
+            scrollToBottom();
+        }
+    } catch (error) {
+        console.error("Gagal memuat chat");
+    }
+};
+
+const sendMessage = async () => {
+    if (!chatInput.value.trim()) return;
+    
+    const messageToSend = chatInput.value;
+    chatInput.value = ''; 
+    isSending.value = true;
+
+    // Optimistic Update
+    chatMessages.value.push({
+        id: 'temp-' + Date.now(),
+        message: messageToSend,
+        is_admin: 0,
+        created_at: new Date().toISOString()
+    });
+    scrollToBottom();
+
+    try {
+        await axios.post(route('chat.store'), { message: messageToSend });
+        fetchMessages(); 
+    } catch (error) {
+        console.error("Gagal kirim");
+    } finally {
+        isSending.value = false;
+    }
+};
+
+const scrollToBottom = () => {
+    nextTick(() => {
+        if (chatContainer.value) {
+            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
         }
     });
 };
+
+const startPolling = () => {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = setInterval(fetchMessages, 3000); 
+};
+
+const stopPolling = () => {
+    if (pollingInterval) clearInterval(pollingInterval);
+};
+
+onUnmounted(() => stopPolling());
 </script>
 
 <template>
@@ -109,12 +136,19 @@ const submitComplaint = () => {
 
                         <div class="ml-3 relative" v-if="user">
                             <div class="flex items-center gap-4">
-                                <span class="text-white text-sm font-bold text-right">
+                                <span class="text-white text-sm font-bold text-right hidden lg:block">
                                     Halo, {{ user.name }}
                                 </span>
                                 <div class="flex gap-2">
-                                    <Link :href="route('my-orders')" class="px-4 py-2 text-xs font-bold text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition border border-slate-700">Pesanan Saya</Link>
-                                    <button @click="logout" class="px-4 py-2 text-xs font-bold text-white bg-red-600 rounded-lg hover:bg-red-500 transition shadow-lg shadow-red-900/20">Logout</button>
+                                    <Link :href="route('subscription.index')" class="px-3 py-2 text-xs font-bold text-white bg-cyan-700 rounded-lg hover:bg-cyan-600 transition border border-cyan-600">
+                                        Layanan Saya
+                                    </Link>
+                                    <Link :href="route('my-orders')" class="px-3 py-2 text-xs font-bold text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition border border-slate-700">
+                                        Pesanan
+                                    </Link>
+                                    <button @click="logout" class="px-3 py-2 text-xs font-bold text-white bg-red-600 rounded-lg hover:bg-red-500 transition shadow-lg shadow-red-900/20">
+                                        Logout
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -146,7 +180,8 @@ const submitComplaint = () => {
                     <div v-if="user" class="px-4">
                         <div class="font-medium text-base text-white">{{ user.name }}</div>
                         <div class="font-medium text-sm text-slate-500">{{ user.email }}</div>
-                        <div class="mt-3 space-y-1">
+                        <div class="mt-3 space-y-2">
+                            <Link :href="route('subscription.index')" class="block px-4 py-2 text-base font-medium text-cyan-400 hover:text-white hover:bg-slate-800 rounded-md">Layanan Saya</Link>
                             <Link :href="route('my-orders')" class="block px-4 py-2 text-base font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-md">Pesanan Saya</Link>
                             <button @click="logout" class="w-full text-left block px-4 py-2 text-base font-medium text-red-400 hover:text-red-300 hover:bg-slate-800 rounded-md">Logout</button>
                         </div>
@@ -169,89 +204,66 @@ const submitComplaint = () => {
             </div>
         </footer>
 
-        <div class="fixed bottom-6 right-6 z-50 group">
-            <div class="absolute bottom-full mb-3 right-0 bg-slate-800 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-slate-700">
-                Laporkan Masalah
-            </div>
+        <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
             
-            <button 
-                @click="openCsModal"
-                class="w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-[0_0_20px_rgba(37,99,235,0.5)] flex items-center justify-center transition-all duration-300 hover:scale-110 animate-bounce-slow border-2 border-slate-900"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-            </button>
-        </div>
-
-        <div v-if="showCsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" @click="showCsModal = false"></div>
-
-            <div class="bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl relative z-10 overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-700">
-                
-                <div class="bg-slate-800 p-6 flex justify-between items-center border-b border-slate-700">
-                    <div>
-                        <h3 class="font-bold text-lg text-white">Pusat Bantuan</h3>
-                        <p class="text-slate-400 text-xs">Laporkan kendala layanan Anda</p>
+            <transition enter-active-class="transition ease-out duration-300" enter-from-class="opacity-0 translate-y-10 scale-95" enter-to-class="opacity-100 translate-y-0 scale-100" leave-active-class="transition ease-in duration-200" leave-from-class="opacity-100 translate-y-0 scale-100" leave-to-class="opacity-0 translate-y-10 scale-95">
+                <div v-if="isChatOpen" class="bg-slate-900 w-80 sm:w-96 h-[500px] rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden mb-4">
+                    
+                    <div class="bg-slate-800 p-4 flex justify-between items-center border-b border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <div class="relative">
+                                <div class="w-10 h-10 bg-cyan-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg">CS</div>
+                                <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
+                            </div>
+                            <div>
+                                <h3 class="text-white font-bold text-sm">Customer Support</h3>
+                                <p class="text-slate-400 text-xs">Online</p>
+                            </div>
+                        </div>
+                        <button @click="toggleChat" class="text-slate-400 hover:text-white transition">✕</button>
                     </div>
-                    <button @click="showCsModal = false" class="text-slate-400 hover:text-white transition">
-                        ✕
-                    </button>
-                </div>
 
-                <div class="p-6">
-                    <form @submit.prevent="submitComplaint" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-bold text-slate-400 mb-1">Perihal Masalah</label>
-                            <input 
-                                v-model="csForm.subject" 
-                                type="text" 
-                                class="w-full bg-slate-950 border-slate-700 text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 placeholder-slate-600" 
-                                placeholder="Contoh: Internet Mati Total" 
-                                required
-                            >
-                            <div v-if="csForm.errors.subject" class="text-red-500 text-xs mt-1">{{ csForm.errors.subject }}</div>
+                    <div ref="chatContainer" class="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-950/50">
+                        <div v-if="chatMessages.length === 0" class="text-center text-slate-500 text-xs py-10">
+                            <p>👋 Halo! Ada yang bisa kami bantu?</p>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-bold text-slate-400 mb-1">Detail Kendala</label>
-                            <textarea 
-                                v-model="csForm.message" 
-                                rows="4" 
-                                class="w-full bg-slate-950 border-slate-700 text-white rounded-lg focus:ring-blue-500 focus:border-blue-500 placeholder-slate-600" 
-                                placeholder="Jelaskan kronologi atau detail masalah..." 
-                                required
-                            ></textarea>
-                            <div v-if="csForm.errors.message" class="text-red-500 text-xs mt-1">{{ csForm.errors.message }}</div>
+                        <div v-for="msg in chatMessages" :key="msg.id" class="flex" :class="msg.is_admin ? 'justify-start' : 'justify-end'">
+                            <div class="max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed" 
+                                 :class="msg.is_admin ? 'bg-slate-800 text-slate-200 rounded-tl-none' : 'bg-cyan-600 text-white rounded-tr-none'">
+                                {{ msg.message }}
+                                <div class="text-[10px] opacity-50 mt-1 text-right">
+                                    {{ new Date(msg.created_at).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) }}
+                                </div>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="pt-2">
-                            <button 
-                                type="submit" 
-                                :disabled="csForm.processing"
-                                class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-900/50 flex justify-center items-center gap-2 disabled:opacity-70"
-                            >
-                                <span v-if="csForm.processing">Mengirim...</span>
-                                <span v-else>Kirim Laporan &rarr;</span>
+                    <div class="p-3 bg-slate-800 border-t border-slate-700">
+                        <form @submit.prevent="sendMessage" class="flex gap-2">
+                            <input v-model="chatInput" type="text" placeholder="Ketik pesan..." 
+                                   class="flex-1 bg-slate-950 border border-slate-700 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition">
+                            <button type="submit" class="w-10 h-10 bg-cyan-600 hover:bg-cyan-500 rounded-full flex items-center justify-center text-white transition shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                             </button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
+            </transition>
 
-                <div class="bg-slate-950 p-4 text-center border-t border-slate-800">
-                    <p class="text-xs text-slate-500">Fast Response via WhatsApp: <a href="#" class="text-green-500 font-bold hover:underline">0812-3456-7890</a></p>
+            <button @click="toggleChat" class="w-14 h-14 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-[0_0_20px_rgba(8,145,178,0.5)] flex items-center justify-center transition-all duration-300 hover:scale-110 border-2 border-slate-900 group relative">
+                <span v-if="!isChatOpen">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                </span>
+                <span v-else>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </span>
+                
+                <div class="absolute right-full mr-3 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap pointer-events-none border border-slate-700">
+                    Live Chat
                 </div>
-            </div>
+            </button>
         </div>
 
     </div>
 </template>
-
-<style scoped>
-/* Animasi Bouncing Lambat untuk Tombol CS */
-@keyframes bounce-slow {
-  0%, 100% { transform: translateY(-5%); }
-  50% { transform: translateY(0); }
-}
-.animate-bounce-slow {
-  animation: bounce-slow 3s infinite ease-in-out;
-}
-</style>

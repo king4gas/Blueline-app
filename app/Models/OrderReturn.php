@@ -9,7 +9,15 @@ class OrderReturn extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['order_id', 'user_id', 'reason', 'evidence', 'status', 'admin_note'];
+    protected $fillable = [
+        'order_id', 
+        'user_id', 
+        'reason', 
+        'image', // Baru
+        'video', // Baru
+        'status', 
+        'admin_note'
+    ];
 
     public function order() {
         return $this->belongsTo(Order::class);

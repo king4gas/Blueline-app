@@ -10,14 +10,16 @@ class OrderController extends Controller
 {
     public function index()
     {
-        // Ambil pesanan punya user yang login, urutkan dari yang terbaru
-        // Sertakan juga data 'items' agar kita bisa lihat detail barangnya
-        $orders = Order::with('items')
+        // 1. Ambil data Order + Item Produk + Status Retur
+        $orders = Order::with(['items.product', 'returnRequest']) 
             ->where('user_id', auth()->id())
             ->latest()
             ->get();
 
-        return Inertia::render('Order/MyOrders', [
+        // 2. Render ke Tampilan Vue
+        // PERHATIKAN BARIS INI: Sesuaikan dengan nama folder di resources/js/Pages/
+        // Jika file Anda ada di folder "Order", pakai 'Order/MyOrders'
+        return Inertia::render('Order/MyOrders', [ 
             'orders' => $orders
         ]);
     }

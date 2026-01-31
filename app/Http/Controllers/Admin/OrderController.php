@@ -9,53 +9,63 @@ use Inertia\Inertia;
 
 class OrderController extends Controller
 {
+    // TAMPILKAN DAFTAR ORDER
     public function index(Request $request)
     {
-        $query = Order::with('user', 'items.product')->latest();
+        // Load user untuk nama, returnRequest untuk cek status retur
+        $query = Order::with(['user', 'returnRequest', 'items']); 
 
-        // Filter Tab (Pending, Shipping, Completed, Returned)
-        if ($request->has('status') && $request->status !== 'all') {
+        // Filter Status (Tab Menu)
+        if ($request->has('status')) {
             if ($request->status === 'return_requested') {
-                $query->where('status', 'return_requested');
+                // Khusus tab retur, cari yang punya request retur
+                $query->whereHas('returnRequest'); 
             } else {
+                // Tab status biasa
                 $query->where('status', $request->status);
             }
         }
 
         return Inertia::render('Admin/Orders/Index', [
-            'orders' => $query->get(),
-            'filterStatus' => $request->status ?? 'all'
+            'orders' => $query->latest()->get(),
+            'filterStatus' => $request->status // Kirim balik untuk active tab state
         ]);
     }
 
-    // Update Status Biasa (Kirim Barang, Selesai, dll)
+    // UPDATE STATUS ORDER BIASA
     public function update(Request $request, Order $order)
     {
         $request->validate(['status' => 'required']);
         $order->update(['status' => $request->status]);
-        return back()->with('message', 'Status pesanan diperbarui');
+        
+        return back()->with('message', 'Status pesanan berhasil diperbarui.');
     }
 
-    // === FITUR BARU: ACC / TOLAK RETUR ===
+    // VERIFIKASI RETUR (Logic Flowchart)
     public function verifyReturn(Request $request, Order $order)
     {
+        // Validasi input dari Vue (Modal Admin)
         $request->validate([
-            'decision' => 'required|in:approve,reject',
-            'rejection_reason' => 'nullable|string'
+            'status' => 'required|in:approved,rejected,item_received,completed',
+            'admin_note' => 'nullable|string'
         ]);
 
-        if ($request->decision === 'approve') {
-            // Jika diterima, status jadi 'returned'
-            $order->update([
-                'status' => 'returned'
-            ]);
-            // OPSI: Di sini bisa tambahkan logic kembalikan stok produk jika perlu
-        } else {
-            // Jika ditolak, status kembali 'completed' atau 'return_rejected'
-            $order->update([
-                'status' => 'return_rejected',
-                'rejection_reason' => $request->rejection_reason
-            ]);
+        // 1. Update Status di Tabel OrderReturn (Tabel Anak)
+        // Kita pakai updateOrCreate jaga-jaga, tapi update() saja cukup jika data pasti ada
+        $order->returnRequest()->update([
+            'status' => $request->status,
+            'admin_note' => $request->admin_note
+        ]);
+
+        // 2. Sinkronisasi Status Order Utama (Tabel Induk)
+        // Ini opsional tapi bagus untuk UX agar list order utama statusnya jelas
+        if ($request->status === 'completed') {
+            $order->update(['status' => 'returned']); // Order selesai, barang kembali
+        } 
+        elseif ($request->status === 'rejected') {
+            // Jika ditolak, kembalikan status order jadi completed (selesai normal)
+            // agar user tidak bisa retur lagi (kecuali logic tombol diubah)
+            $order->update(['status' => 'completed']); 
         }
 
         return back()->with('message', 'Keputusan retur berhasil disimpan.');

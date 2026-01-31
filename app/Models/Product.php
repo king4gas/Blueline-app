@@ -14,12 +14,14 @@ class Product extends Model
         'slug',
         'description',
         'price',
+        'stock',     // <--- WAJIB ADA DI SINI
+        'speed',     
+        'duration',  
         'image',
         'type',
         'is_featured', 
     ];
 
-    // === TAMBAHKAN KODE INI DI BAWAH ===
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);

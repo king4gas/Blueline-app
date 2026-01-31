@@ -16,7 +16,7 @@ class Order extends Model
         'status',
         'payment_proof',
         'address', 
-        'phone', // <--- TAMBAHAN: Agar kolom phone bisa diisi
+        'phone',
     ];
 
     public function user()
@@ -27,5 +27,12 @@ class Order extends Model
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    // === TAMBAHAN BARU ===
+    // Relasi ini wajib ada agar fitur retur berjalan
+    public function returnRequest()
+    {
+        return $this->hasOne(OrderReturn::class);
     }
 }

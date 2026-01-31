@@ -1,240 +1,253 @@
 <script setup>
 import UserLayout from '@/Layouts/UserLayout.vue';
-import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
-import Swal from 'sweetalert2';
+import Modal from '@/Components/Modal.vue';
 
-defineOptions({ layout: UserLayout });
-
-const props = defineProps({ orders: Array });
-
-// === LOGIC PENGEMBALIAN BARANG ===
-const showReturnModal = ref(false);
-const selectedOrder = ref(null);
-const evidencePreview = ref(null);
-
-const returnForm = useForm({
-    reason: '',
-    evidence: null
+const props = defineProps({
+    orders: Array
 });
 
-const formatRupiah = (n) => new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits: 0}).format(n);
-const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' });
+// === STATE ===
+const showReturnModal = ref(false);
+const selectedOrder = ref(null);
+const imagePreview = ref(null);
 
-// Status Color Helper
-const getStatusClass = (status) => {
-    switch(status) {
-        case 'verified': case 'completed': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-        case 'shipped': return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
-        case 'cancelled': return 'bg-red-500/10 text-red-400 border-red-500/20';
-        default: return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-    }
-};
+const form = useForm({
+    reason: '',
+    image: null,
+    video: null,
+});
 
-const getStatusLabel = (status) => {
-    const labels = {
-        'pending_verification': 'Menunggu Verifikasi',
-        'verified': 'Pembayaran Diterima',
-        'shipped': 'Sedang Dikirim',
-        'completed': 'Selesai',
-        'cancelled': 'Dibatalkan'
-    };
-    return labels[status] || status;
-};
+const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-// Buka Modal Return
+// === LOGIC MODAL ===
 const openReturnModal = (order) => {
     selectedOrder.value = order;
+    form.reset();
+    imagePreview.value = null;
     showReturnModal.value = true;
-    returnForm.reset();
-    evidencePreview.value = null;
 };
 
-// Handle File Upload
-const handleEvidenceUpload = (e) => {
+const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    returnForm.evidence = file;
-    if (file) evidencePreview.value = URL.createObjectURL(file);
+    form.image = file;
+    if (file) {
+        imagePreview.value = URL.createObjectURL(file);
+    }
 };
 
-// Submit Pengajuan
 const submitReturn = () => {
     if (!selectedOrder.value) return;
-
-    returnForm.post(route('orders.return', selectedOrder.value.id), {
+    form.post(route('orders.return', selectedOrder.value.id), {
         onSuccess: () => {
             showReturnModal.value = false;
-            Swal.fire({
-                title: 'Berhasil',
-                text: 'Pengajuan retur telah dikirim.',
-                icon: 'success',
-                background: '#1e293b',
-                color: '#fff'
-            });
+            form.reset();
         },
-        onError: () => {
-            Swal.fire({
-                title: 'Gagal',
-                text: 'Periksa kembali data Anda.',
-                icon: 'error',
-                background: '#1e293b',
-                color: '#fff'
-            });
-        }
+        forceFormData: true
     });
-};
-
-// Fitur Beli Lagi
-const buyAgain = (order) => {
-    if (order.items.length > 0) {
-        router.post(route('cart.store'), { product_id: order.items[0].product_id });
-    }
 };
 </script>
 
 <template>
-    <Head title="Pesanan Saya" />
+    <Head title="Riwayat Pesanan" />
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 min-h-screen text-slate-100">
-        
-        <div class="flex items-center gap-4 mb-8">
-            <div class="p-3 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-            </div>
-            <div>
-                <h1 class="text-3xl font-black text-white tracking-tight">Riwayat Pesanan</h1>
-                <p class="text-slate-400 text-sm">Pantau status pengiriman dan riwayat transaksi Anda.</p>
-            </div>
-        </div>
-
-        <div v-if="orders.length === 0" class="text-center py-20 bg-slate-900/50 rounded-3xl border border-slate-800 border-dashed">
-            <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
-                <span class="text-4xl">🛍️</span>
-            </div>
-            <h3 class="text-xl font-bold text-white mb-2">Belum ada pesanan</h3>
-            <p class="text-slate-500 mb-6">Yuk mulai belanja produk internet terbaik kami.</p>
-            <Link :href="route('products.index')" class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition shadow-lg shadow-cyan-900/50">
-                Mulai Belanja
-            </Link>
-        </div>
-
-        <div v-else class="space-y-6">
-            <div v-for="order in orders" :key="order.id" class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden group hover:border-slate-700 transition duration-300">
+    <UserLayout>
+        <div class="py-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 
-                <div class="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-cyan-500/10 transition"></div>
+                <div class="mb-8">
+                    <h2 class="font-black text-3xl text-white">Riwayat Pesanan</h2>
+                    <p class="text-slate-400">Pantau status pesanan dan pengajuan pengembalian Anda.</p>
+                </div>
 
-                <div class="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-800 pb-4 mb-4 gap-4 relative z-10">
-                    <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">Invoice</span>
-                            <span class="font-mono text-cyan-400 font-bold bg-cyan-950/30 px-2 py-0.5 rounded text-sm border border-cyan-500/20 select-all">{{ order.invoice_number }}</span>
-                        </div>
-                        <div class="text-xs text-slate-400">{{ formatDate(order.created_at) }}</div>
-                    </div>
+                <div class="space-y-6">
                     
-                    <div class="flex flex-wrap items-center gap-4">
-                        <span class="px-4 py-1.5 rounded-full text-xs font-bold uppercase border backdrop-blur-sm"
-                            :class="getStatusClass(order.status)">
-                            {{ getStatusLabel(order.status) }}
-                        </span>
-                        <div class="text-right pl-4 border-l border-slate-800">
-                            <div class="text-[10px] text-slate-500 uppercase font-bold">Total</div>
-                            <div class="font-bold text-white text-lg">{{ formatRupiah(order.total_price) }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-4 mb-6 relative z-10">
-                    <div v-for="item in order.items" :key="item.id" class="flex items-center gap-4 bg-slate-950/50 p-3 rounded-xl border border-slate-800/50">
-                        <div class="w-14 h-14 bg-slate-800 rounded-lg overflow-hidden flex-shrink-0 border border-slate-700">
-                            <img v-if="item.product" :src="item.product.image" class="w-full h-full object-cover">
-                            <div v-else class="w-full h-full flex items-center justify-center text-xs text-slate-500">N/A</div>
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-white text-sm">{{ item.product_name || 'Produk dihapus' }}</h4>
-                            <p class="text-xs text-slate-400 mt-1">
-                                <span class="text-cyan-400 font-bold">{{ item.quantity }}x</span> 
-                                {{ formatRupiah(item.price) }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap justify-end gap-3 pt-4 border-t border-slate-800 relative z-10">
-                    
-                    <button @click="buyAgain(order)" class="px-5 py-2.5 rounded-xl border border-cyan-500/30 text-cyan-400 font-bold text-sm hover:bg-cyan-500/10 transition flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/><line x1="21" y1="5" x2="9" y2="17"/><line x1="15" y1="5" x2="21" y2="5"/><line x1="21" y1="5" x2="21" y2="11"/></svg>
-                        Beli Lagi
-                    </button>
-
-                    <button 
-                        v-if="['verified', 'shipped', 'completed'].includes(order.status)"
-                        @click="openReturnModal(order)" 
-                        class="px-5 py-2.5 rounded-xl border border-red-500/30 text-red-400 font-bold text-sm hover:bg-red-500/10 transition flex items-center gap-2"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
-                        Ajukan Pengembalian
-                    </button>
-
-                </div>
-            </div>
-        </div>
-
-        <div v-if="showReturnModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" @click="showReturnModal = false"></div>
-            
-            <div class="bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl relative z-10 overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-700">
-                <div class="bg-red-900/20 p-6 border-b border-red-500/20 flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-bold text-red-400 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg>
-                            Pengembalian Barang
-                        </h3>
-                        <p class="text-red-300/70 text-xs mt-1 font-mono">INV: {{ selectedOrder?.invoice_number }}</p>
-                    </div>
-                    <button @click="showReturnModal = false" class="text-slate-400 hover:text-white transition">✕</button>
-                </div>
-                
-                <form @submit.prevent="submitReturn" class="p-6 space-y-5">
-                    <div>
-                        <label class="block text-sm font-bold text-slate-400 mb-2">Alasan Pengembalian</label>
-                        <div class="relative">
-                            <select v-model="returnForm.reason" class="w-full bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-red-500 focus:border-red-500 text-sm p-3 appearance-none">
-                                <option value="" disabled>Pilih Alasan Masalah</option>
-                                <option value="Barang Rusak / Cacat">Barang Rusak / Cacat</option>
-                                <option value="Barang Tidak Sesuai Pesanan">Barang Tidak Sesuai Pesanan</option>
-                                <option value="Kelengkapan Kurang">Kelengkapan Kurang</option>
-                                <option value="Lainnya">Lainnya</option>
-                            </select>
-                            <div class="absolute right-3 top-3.5 pointer-events-none text-slate-500">▼</div>
-                        </div>
-                        <div v-if="returnForm.errors.reason" class="text-red-500 text-xs mt-1">{{ returnForm.errors.reason }}</div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-400 mb-2">Foto Bukti (Wajib)</label>
-                        <div class="flex items-start gap-4 p-4 bg-slate-950 rounded-xl border border-slate-800 border-dashed">
-                            <div class="flex-1">
-                                <input type="file" @change="handleEvidenceUpload" accept="image/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-red-500/10 file:text-red-400 hover:file:bg-red-500/20 cursor-pointer">
-                                <p class="text-xs text-slate-500 mt-2">Upload foto barang yang bermasalah.</p>
+                    <div v-for="order in orders" :key="order.id" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg transition hover:border-slate-700">
+                        
+                        <div class="bg-slate-950/50 p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <div class="text-xs text-slate-500 font-bold uppercase tracking-wider">No. Invoice</div>
+                                <div class="text-white font-mono font-bold">#{{ order.invoice_number || order.id }}</div>
                             </div>
-                            <div v-if="evidencePreview" class="w-16 h-16 rounded-lg border border-slate-700 overflow-hidden bg-slate-800">
-                                <img :src="evidencePreview" class="w-full h-full object-cover">
+                            <div class="flex items-center gap-4">
+                                <div class="text-right hidden sm:block">
+                                    <div class="text-xs text-slate-500 font-bold uppercase tracking-wider">Tanggal</div>
+                                    <div class="text-slate-300 text-sm">{{ new Date(order.created_at).toLocaleDateString('id-ID') }}</div>
+                                </div>
+                                
+                                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase border"
+                                    :class="{
+                                        'bg-yellow-500/20 text-yellow-500 border-yellow-500/50': order.status === 'pending_verification',
+                                        'bg-blue-500/20 text-blue-500 border-blue-500/50': order.status === 'verified',
+                                        'bg-cyan-500/20 text-cyan-500 border-cyan-500/50': order.status === 'shipped',
+                                        'bg-emerald-500/20 text-emerald-500 border-emerald-500/50': order.status === 'completed',
+                                        'bg-red-500/20 text-red-500 border-red-500/50': order.status === 'return_requested' || order.status === 'returned',
+                                    }">
+                                    {{ order.status.replace('_', ' ') }}
+                                </span>
                             </div>
                         </div>
-                        <div v-if="returnForm.errors.evidence" class="text-red-500 text-xs mt-1">{{ returnForm.errors.evidence }}</div>
+
+                        <div class="p-6">
+                            <div v-for="item in order.order_items" :key="item.id" class="flex gap-4 mb-4 last:mb-0">
+                                <img :src="item.product?.image || '/placeholder.jpg'" class="w-16 h-16 object-cover rounded-lg bg-slate-800 border border-slate-700">
+                                <div>
+                                    <h4 class="text-white font-bold">{{ item.product?.name }}</h4>
+                                    <p class="text-slate-400 text-xs">{{ item.product?.type === 'hardware' ? 'Perangkat Keras' : 'Layanan Internet' }}</p>
+                                    <p class="text-cyan-400 text-sm mt-1 font-bold">{{ formatRupiah(item.price) }} <span class="text-slate-500 font-normal">x {{ item.quantity }}</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-slate-950 border-t border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div class="text-white font-bold text-lg w-full md:w-auto mb-2 md:mb-0">
+                                Total: <span class="text-cyan-400">{{ formatRupiah(order.total_price) }}</span>
+                            </div>
+
+                            <div class="w-full md:w-2/3">
+                                
+                                <div v-if="!order.return_request" class="flex justify-end">
+                                    <button v-if="order.status === 'completed'" 
+                                            @click="openReturnModal(order)"
+                                            class="px-4 py-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/30 rounded-lg transition text-sm font-bold flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                        Ajukan Pengembalian
+                                    </button>
+                                </div>
+
+                                <div v-else class="space-y-3">
+                                    
+                                    <div v-if="order.return_request.status === 'pending'" class="w-full px-5 py-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-center gap-4 animate-pulse-slow">
+                                        <div class="bg-yellow-500/20 p-2 rounded-full">
+                                            <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-yellow-400 text-sm">Menunggu Verifikasi Admin</h4>
+                                            <p class="text-xs text-yellow-200/60 mt-0.5">Bukti foto & alasan Anda sedang dicek.</p>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="order.return_request.status === 'approved'" class="relative w-full bg-gradient-to-r from-emerald-900/40 to-slate-900 border border-emerald-500/30 rounded-xl overflow-hidden shadow-lg shadow-emerald-900/10">
+                                        <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none"></div>
+                                        
+                                        <div class="p-5">
+                                            <div class="flex items-start gap-4">
+                                                <div class="bg-emerald-500/20 p-3 rounded-xl flex-shrink-0">
+                                                    <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                </div>
+                                                <div class="flex-1">
+                                                    <h4 class="text-emerald-400 font-bold text-lg">Pengajuan Disetujui! 🎉</h4>
+                                                    <p class="text-slate-300 text-sm mt-1 mb-4 leading-relaxed">
+                                                        Silakan kirim barang retur ke alamat gudang kami:
+                                                    </p>
+                                                    
+                                                    <div class="bg-slate-950 border-2 border-dashed border-slate-700 rounded-lg p-4 font-mono relative group hover:border-emerald-500/30 transition-colors">
+                                                        <div class="absolute top-2 right-2 text-[10px] text-slate-500 uppercase tracking-widest border border-slate-700 px-2 py-0.5 rounded">Warehouse Label</div>
+                                                        <p class="text-white font-bold text-sm">PT. BLUELINE INDONESIA (Divisi Retur)</p>
+                                                        <p class="text-slate-300 text-sm mt-1">Jl. Jend. Sudirman No. 88, Singaraja, Bali.</p>
+                                                        <div class="mt-3 pt-3 border-t border-slate-800">
+                                                            <p class="text-yellow-400 text-xs font-bold">⚠️ Tulis "RETUR #{{ order.id }}" di paket.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="order.return_request.status === 'item_received'" class="w-full px-5 py-4 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center gap-4">
+                                        <div class="bg-purple-500/20 p-2 rounded-full">
+                                            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-purple-400 text-sm">Barang Sampai di Gudang</h4>
+                                            <p class="text-xs text-purple-300/60 mt-0.5">Kami sedang melakukan pengecekan fisik barang.</p>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="order.return_request.status === 'completed'" class="w-full px-5 py-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex items-center gap-4">
+                                        <div class="bg-blue-500/20 p-2 rounded-full">
+                                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-blue-400 text-sm">Retur Selesai</h4>
+                                            <p class="text-xs text-blue-300/60 mt-0.5">Barang pengganti dikirim / Dana dikembalikan.</p>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="order.return_request.status === 'rejected'" class="w-full px-5 py-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-4">
+                                        <div class="bg-red-500/20 p-2 rounded-full">
+                                            <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-red-500 text-sm">Pengajuan Ditolak</h4>
+                                            <p class="text-xs text-red-300/60 mt-0.5 italic">"{{ order.return_request.admin_note }}"</p>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    
+                    <div v-if="orders.length === 0" class="text-center py-20 bg-slate-900 border border-slate-800 rounded-2xl">
+                        <div class="text-6xl mb-4 opacity-50">📦</div>
+                        <h3 class="text-white font-bold text-xl">Belum ada pesanan</h3>
+                        <p class="text-slate-400 mb-6">Yuk mulai belanja layanan internet terbaik!</p>
+                        <a :href="route('products.index')" class="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded-full font-bold transition">Lihat Produk</a>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <Modal :show="showReturnModal" @close="showReturnModal = false">
+            <div class="bg-slate-900 text-white p-6 border border-slate-700 rounded-lg">
+                <div class="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+                    <h3 class="text-lg font-bold">Ajukan Pengembalian</h3>
+                    <button @click="showReturnModal = false" class="text-slate-500 hover:text-white">✕</button>
+                </div>
+
+                <form @submit.prevent="submitReturn" class="space-y-5">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-300 mb-2">Jelaskan Masalah / Kerusakan</label>
+                        <textarea v-model="form.reason" rows="3" 
+                            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500 transition"
+                            placeholder="Contoh: Router mati total saat dinyalakan..." required></textarea>
+                        <div v-if="form.errors.reason" class="text-red-400 text-xs mt-1">{{ form.errors.reason }}</div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-300 mb-2">Bukti Foto (Wajib)</label>
+                        <input type="file" @change="handleImageUpload" accept="image/*" required
+                            class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-slate-800 file:text-red-400 hover:file:bg-slate-700 cursor-pointer border border-slate-700 rounded-xl bg-slate-950">
+                        <div v-if="imagePreview" class="mt-3">
+                            <p class="text-[10px] text-slate-500 mb-1 uppercase">Preview Foto:</p>
+                            <img :src="imagePreview" class="h-32 w-auto object-cover rounded-lg border border-slate-700">
+                        </div>
+                        <div v-if="form.errors.image" class="text-red-400 text-xs mt-1">{{ form.errors.image }}</div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-slate-300 mb-2">Bukti Video (Opsional)</label>
+                        <input type="file" @input="form.video = $event.target.files[0]" accept="video/*"
+                            class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-slate-800 file:text-cyan-400 hover:file:bg-slate-700 cursor-pointer border border-slate-700 rounded-xl bg-slate-950">
+                        <p class="text-xs text-slate-500 mt-1">Maksimal 20MB.</p>
+                        <div v-if="form.errors.video" class="text-red-400 text-xs mt-1">{{ form.errors.video }}</div>
                     </div>
 
                     <div class="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                        <button type="button" @click="showReturnModal = false" class="px-5 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl font-bold text-sm transition">Batal</button>
-                        <button type="submit" :disabled="returnForm.processing" class="px-6 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-500 transition shadow-lg shadow-red-900/50 disabled:opacity-70 flex items-center gap-2">
-                            <span v-if="returnForm.processing" class="animate-pulse">Mengirim...</span>
+                        <button type="button" @click="showReturnModal = false" class="px-4 py-2 text-slate-400 hover:text-white">Batal</button>
+                        <button type="submit" :disabled="form.processing" 
+                            class="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-xl font-bold transition flex items-center gap-2">
+                            <span v-if="form.processing">Mengirim...</span>
                             <span v-else>Kirim Pengajuan</span>
                         </button>
                     </div>
                 </form>
             </div>
-        </div>
+        </Modal>
 
-    </div>
+    </UserLayout>
 </template>

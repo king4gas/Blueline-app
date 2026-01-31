@@ -10,12 +10,19 @@ return new class extends Migration
     {
         Schema::create('order_returns', function (Blueprint $table) {
             $table->id();
+            // Relasi ke order dan user
             $table->foreignId('order_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->string('reason'); // Alasan pengembalian
-            $table->string('evidence')->nullable(); // Foto bukti barang rusak/salah
-            $table->string('status')->default('pending'); // pending, approved, rejected
-            $table->text('admin_note')->nullable(); // Catatan dari admin jika ditolak
+            
+            // Sesuai Flowchart Kanan: Butuh Bukti & Keterangan
+            $table->string('reason'); // Keterangan Masalah
+            $table->string('image');  // Bukti Foto (Path file)
+            $table->string('video')->nullable(); // Bukti Video (Opsional)
+            
+            // Status: pending (menunggu admin), approved (kirim barang), rejected (ditolak), completed
+            $table->string('status')->default('pending'); 
+            $table->text('admin_note')->nullable(); // Alasan jika ditolak admin
+            
             $table->timestamps();
         });
     }

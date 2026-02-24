@@ -72,58 +72,69 @@ class CartController extends Controller
     }
 
     // === CHECKOUT FINAL (SUDAH DIPERBAIKI) ===
+    // === CHECKOUT FINAL (SUDAH DIPERBAIKI UNTUK SISTEM KODE UNIK) ===
     public function checkout(Request $request)
     {
-        // 1. Validasi Input
+        // 1. Validasi Input (HAPUS VALIDASI payment_proof)
         $request->validate([
             'selected_cart_ids' => 'required|array|min:1',
             'address' => 'required|string',
             'phone' => 'required|string',
-            'payment_proof' => 'required|image|max:2048',
         ]);
 
-        DB::transaction(function () use ($request) {
-            // 2. Upload Gambar
-            $path = $request->file('payment_proof')->store('payment_proofs', 'public');
-            
-            // 3. Ambil Keranjang
-            $cartItems = Cart::with('product')
-                ->where('user_id', auth()->id())
-                ->whereIn('id', $request->selected_cart_ids)
-                ->get();
+        // 2. Ambil Keranjang
+        $cartItems = Cart::with('product')
+            ->where('user_id', auth()->id())
+            ->whereIn('id', $request->selected_cart_ids)
+            ->get();
 
-            // 4. Hitung Total
-            $totalPrice = $cartItems->sum(fn($item) => $item->product->price * $item->quantity);
-            
-            // 5. Buat Nomor Invoice
-            $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
+        if ($cartItems->isEmpty()) {
+            return back()->withErrors(['cart' => 'Keranjang kosong atau item tidak valid.']);
+        }
 
-            // 6. Simpan Order
+        // 3. Hitung Total Subtotal + Generate Kode Unik
+        $subTotal = $cartItems->sum(fn($item) => $item->product->price * $item->quantity);
+        $uniqueCode = rand(111, 999);
+        $totalPrice = $subTotal + $uniqueCode; // Total Tagihan (Subtotal + Kode Unik)
+
+        // 4. Buat Nomor Invoice
+        $invoiceNumber = 'INV-' . date('Ymd') . '-' . strtoupper(Str::random(5));
+
+        DB::transaction(function () use ($request, $cartItems, $totalPrice, $invoiceNumber, $uniqueCode) {
+            
+            // 5. Simpan Order
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'invoice_number' => $invoiceNumber,
-                'total_price' => $totalPrice,
-                'status' => 'pending_verification',
-                'payment_proof' => $path,
+                'total_price' => $totalPrice, // Harga sudah termasuk kode unik
+                'unique_code' => $uniqueCode, // Simpan kode unik
+                'status' => 'pending_payment', // UBAH: Jadi pending_payment, bukan pending_verification
+                'payment_proof' => null, // KOSONGKAN BUKTI TRANSFER
                 'address' => $request->address,
                 'phone' => $request->phone,
             ]);
 
-            // 7. Simpan Detail Item
+            // 6. Simpan Detail Item
             foreach ($cartItems as $item) {
                 OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $item->product_id,
-                    'product_name' => $item->product->name, // <--- Perbaikan Terakhir
+                    'product_name' => $item->product->name, // Perbaikan Terakhir Anda
                     'quantity' => $item->quantity,
                     'price' => $item->product->price,
                 ]);
+
+                // Kurangi stok database jika itu produk fisik/hardware
+                if ($item->product->type === 'hardware') {
+                    $item->product->decrement('stock', $item->quantity);
+                }
             }
 
-            // 8. Hapus dari Keranjang
+            // 7. Hapus dari Keranjang
             Cart::whereIn('id', $request->selected_cart_ids)->delete();
         });
 
+        // Redirect ke halaman Riwayat Pesanan
         return redirect()->route('my-orders');
     }
 }

@@ -76,6 +76,12 @@ const isActive = (routeName, params = {}) => {
                     <span class="mr-3">💬</span> Live Chat
                 </Link>
 
+                <Link :href="route('admin.reports.index')" 
+                    class="flex items-center px-4 py-3 rounded-xl transition font-medium mb-1"
+                    :class="isActive('admin.reports.index') ? 'bg-slate-800 text-red-400 border border-slate-700 shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'">
+                    <span class="mr-3">🚨</span> Pusat Bantuan
+                </Link>
+
             </nav>
         </aside>
 

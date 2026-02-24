@@ -29,6 +29,35 @@ const getStatusBadge = (status) => {
     }
 };
 
+// === LOGIC UPDATE STATUS ORDER BIASA (SHIPPED & COMPLETED) ===
+const updateStatus = (order, newStatus) => {
+    let titleMsg = newStatus === 'shipped' ? 'Kirim Pesanan?' : 'Selesaikan Pesanan?';
+    let textMsg = newStatus === 'shipped' 
+        ? 'Status akan berubah jadi "DIKIRIM". Pastikan barang sudah diserahkan ke kurir.' 
+        : 'Status akan berubah jadi "SELESAI".';
+    let btnColor = newStatus === 'shipped' ? '#0891b2' : '#059669';
+
+    Swal.fire({
+        title: titleMsg,
+        text: textMsg,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Lanjutkan',
+        confirmButtonColor: btnColor,
+        background: '#1e293b', 
+        color: '#fff'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            router.patch(route('admin.orders.update', order.id), { status: newStatus }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    Swal.fire({ icon: 'success', title: 'Berhasil!', background: '#1e293b', color: '#fff', timer: 1500, showConfirmButton: false });
+                }
+            });
+        }
+    });
+};
+
 // === LOGIC MODAL RETUR SESUAI FLOWCHART ===
 const showReturnModal = ref(false);
 const selectedOrder = ref(null);
@@ -38,11 +67,9 @@ const openReturnModal = (order) => {
     showReturnModal.value = true;
 };
 
-// Logic Tombol Bertahap
 const handleReturnProcess = (action) => {
     if (!selectedOrder.value) return;
 
-    // 1. TAHAP AWAL: Admin Memutuskan (Approve/Reject)
     if (action === 'approve') {
         Swal.fire({
             title: 'Terima Pengajuan?',
@@ -70,7 +97,6 @@ const handleReturnProcess = (action) => {
             if (result.isConfirmed) submitDecision('rejected', result.value);
         });
     }
-    // 2. TAHAP KEDUA: Barang Sampai di Gudang (Item Received)
     else if (action === 'item_received') {
         Swal.fire({
             title: 'Barang Sudah Sampai?',
@@ -78,13 +104,12 @@ const handleReturnProcess = (action) => {
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Ya, Barang Diterima',
-            confirmButtonColor: '#7c3aed', // Purple
+            confirmButtonColor: '#7c3aed',
             background: '#1e293b', color: '#fff'
         }).then((result) => {
             if (result.isConfirmed) submitDecision('item_received', null);
         });
     }
-    // 3. TAHAP AKHIR: Selesaikan Masalah (Completed)
     else if (action === 'complete') {
         Swal.fire({
             title: 'Selesaikan Kasus?',
@@ -110,10 +135,6 @@ const submitDecision = (status, note) => {
             Swal.fire({ icon: 'success', title: 'Status Diperbarui', background: '#1e293b', color: '#fff', timer: 1500, showConfirmButton: false });
         }
     });
-};
-
-const updateStatus = (order, newStatus) => {
-    router.patch(route('admin.orders.update', order.id), { status: newStatus });
 };
 </script>
 
@@ -148,48 +169,73 @@ const updateStatus = (order, newStatus) => {
                     <table class="w-full text-left text-sm text-slate-400">
                         <thead class="bg-slate-950 text-slate-200 uppercase font-bold text-xs">
                             <tr>
-                                <th class="px-6 py-4">Invoice</th>
+                                <th class="px-6 py-4">Invoice / Tgl</th>
                                 <th class="px-6 py-4">Customer</th>
-                                <th class="px-6 py-4">Status Retur</th>
-                                <th class="px-6 py-4 text-center">Aksi</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4 text-center">Aksi Admin</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800">
                             <tr v-for="order in orders" :key="order.id" class="hover:bg-slate-800/50 transition">
-                                <td class="px-6 py-4 font-mono text-cyan-400 font-bold">#{{ order.invoice_number || order.id }}</td>
-                                <td class="px-6 py-4 text-white font-bold">{{ order.user.name }}</td>
+                                
+                                <td class="px-6 py-4">
+                                    <div class="font-mono text-cyan-400 font-bold">#{{ order.invoice_number || order.id }}</div>
+                                    <div class="text-xs text-slate-500 mt-1">{{ formatDate(order.created_at) }}</div>
+                                </td>
+                                
+                                <td class="px-6 py-4">
+                                    <div class="text-white font-bold">{{ order.user.name }}</div>
+                                    <div class="text-xs text-slate-500 mt-1 truncate max-w-[150px]" :title="order.address">{{ order.address }}</div>
+                                </td>
+                                
                                 <td class="px-6 py-4">
                                     <div v-if="order.return_request">
-                                        <span v-if="order.return_request.status === 'pending'" class="px-3 py-1 bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 rounded-full text-xs font-bold animate-pulse">
-                                            ⏳ Menunggu Verifikasi
-                                        </span>
-                                        <span v-else-if="order.return_request.status === 'approved'" class="px-3 py-1 bg-blue-500/20 text-blue-500 border border-blue-500/50 rounded-full text-xs font-bold">
-                                            🚚 Tunggu Barang User
-                                        </span>
-                                        <span v-else-if="order.return_request.status === 'item_received'" class="px-3 py-1 bg-purple-500/20 text-purple-500 border border-purple-500/50 rounded-full text-xs font-bold">
-                                            📦 Barang Diterima
-                                        </span>
-                                        <span v-else-if="order.return_request.status === 'completed'" class="px-3 py-1 bg-emerald-500/20 text-emerald-500 border border-emerald-500/50 rounded-full text-xs font-bold">
-                                            ✅ Retur Selesai
-                                        </span>
-                                        <span v-else class="px-3 py-1 bg-red-500/20 text-red-500 border border-red-500/50 rounded-full text-xs font-bold">
-                                            ❌ Ditolak
+                                        <span v-if="order.return_request.status === 'pending'" class="px-3 py-1 bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 rounded-full text-xs font-bold animate-pulse">⏳ Menunggu Verifikasi (Retur)</span>
+                                        <span v-else-if="order.return_request.status === 'approved'" class="px-3 py-1 bg-blue-500/20 text-blue-500 border border-blue-500/50 rounded-full text-xs font-bold">🚚 Tunggu Barang User (Retur)</span>
+                                        <span v-else-if="order.return_request.status === 'item_received'" class="px-3 py-1 bg-purple-500/20 text-purple-500 border border-purple-500/50 rounded-full text-xs font-bold">📦 Barang Diterima (Retur)</span>
+                                        <span v-else-if="order.return_request.status === 'completed'" class="px-3 py-1 bg-emerald-500/20 text-emerald-500 border border-emerald-500/50 rounded-full text-xs font-bold">✅ Retur Selesai</span>
+                                        <span v-else class="px-3 py-1 bg-red-500/20 text-red-500 border border-red-500/50 rounded-full text-xs font-bold">❌ Retur Ditolak</span>
+                                    </div>
+                                    <div v-else>
+                                        <span class="px-3 py-1 border rounded-full text-xs font-bold uppercase tracking-wider" :class="getStatusBadge(order.status)">
+                                            {{ order.status.replace('_', ' ') }}
                                         </span>
                                     </div>
-                                    <span v-else class="text-slate-600">-</span>
                                 </td>
+                                
                                 <td class="px-6 py-4 text-center">
-                                    <button v-if="order.return_request && order.return_request.status !== 'completed' && order.return_request.status !== 'rejected'" 
+                                    
+                                    <button v-if="order.return_request && !['completed', 'rejected'].includes(order.return_request.status)" 
                                             @click="openReturnModal(order)"
-                                            class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/50 transition flex items-center gap-2 mx-auto">
+                                            class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-xs shadow-lg shadow-red-900/50 transition mx-auto flex items-center gap-2">
                                         ⚙️ Proses Retur
                                     </button>
                                     
-                                    <div v-else-if="!order.return_request && order.status === 'pending_verification'">
-                                        <button @click="updateStatus(order, 'verified')" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-500">Terima Order</button>
+                                    <div v-else-if="!order.return_request" class="flex flex-col gap-2 items-center justify-center">
+                                        
+                                        <button v-if="order.status === 'pending_verification'" 
+                                                @click="updateStatus(order, 'verified')" 
+                                                class="px-3 py-1.5 w-full bg-blue-600 hover:bg-blue-500 text-white rounded-md text-xs font-bold transition">
+                                            Terima Pembayaran
+                                        </button>
+
+                                        <button v-if="order.status === 'verified'" 
+                                                @click="updateStatus(order, 'shipped')" 
+                                                class="px-3 py-1.5 w-full bg-cyan-600 hover:bg-cyan-500 text-white rounded-md text-xs font-bold transition shadow-lg shadow-cyan-900/30">
+                                            📦 Proses Kirim
+                                        </button>
+
+                                        <button v-if="order.status === 'shipped'" 
+                                                @click="updateStatus(order, 'completed')" 
+                                                class="px-3 py-1.5 w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-bold transition shadow-lg shadow-emerald-900/30">
+                                            ✅ Selesaikan Pesanan
+                                        </button>
+
+                                        <span v-if="['completed', 'cancelled', 'returned'].includes(order.status)" class="text-slate-500 text-xs font-bold">
+                                            - Selesai -
+                                        </span>
                                     </div>
-                                    
-                                    <span v-else class="text-slate-600 text-xs italic">Selesai</span>
+
                                 </td>
                             </tr>
                         </tbody>

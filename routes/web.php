@@ -8,13 +8,15 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\OrderReturnController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\ChatController; // Controller Chat User
+use App\Http\Controllers\ChatController; 
+use App\Http\Controllers\ReportController; // <--- BARU: Controller Report User
 
 // Admin Controllers
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\SubscriptionController as AdminSubscriptionController;
-use App\Http\Controllers\Admin\ChatController as AdminChatController; // Controller Chat Admin
+use App\Http\Controllers\Admin\ChatController as AdminChatController; 
+use App\Http\Controllers\Admin\ReportController as AdminReportController; // <--- BARU: Controller Report Admin
 
 use App\Models\Order;
 use App\Models\User;
@@ -47,10 +49,14 @@ Route::post('/feedback', [PageController::class, 'storeFeedback'])->name('feedba
 // === 2. AUTHENTICATED ROUTES (User) ===
 Route::middleware(['auth', 'verified'])->group(function () {
     
-    // LIVE CHAT USER (Pengganti Complaint)
+    // LIVE CHAT USER
     Route::get('/chat/messages', [ChatController::class, 'index'])->name('chat.index');
     Route::post('/chat/send', [ChatController::class, 'store'])->name('chat.store');
     
+    // PUSAT BANTUAN / REPORT (WIDGET KIRI BAWAH)
+    Route::get('/reports/history', [ReportController::class, 'history'])->name('reports.history');
+    Route::post('/reports', [ReportController::class, 'store'])->name('reports.store');
+
     Route::get('/dashboard', function () { return Inertia::render('Dashboard'); })->name('dashboard');
 
     // Profile
@@ -63,13 +69,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/cart/add', [CartController::class, 'store'])->name('cart.store');
     Route::delete('/cart/{id}', [CartController::class, 'destroy'])->name('cart.destroy');
     Route::patch('/cart/{id}', [CartController::class, 'update'])->name('cart.update');
+    
+    // Route Proses Checkout (Kode Unik)
     Route::post('/checkout/process', [CartController::class, 'checkout'])->name('checkout.process');
     
     // Orders & Return
     Route::get('/my-orders', [OrderController::class, 'index'])->name('my-orders');
     Route::post('/orders/{order}/return', [OrderReturnController::class, 'store'])->name('orders.return');
+    
+    // Simulasi Pembayaran Otomatis Skripsi
+    Route::post('/orders/{order}/simulate-payment', [OrderController::class, 'simulatePayment'])->name('orders.simulate_payment');
 
-    // Subscription & Payment
+    // Subscription & Payment (Opsional: Jika masih dipakai)
     Route::get('/my-subscription', [SubscriptionController::class, 'index'])->name('subscription.index');
     Route::post('/subscription/renew', [SubscriptionController::class, 'renew'])->name('subscription.renew');
     Route::get('/payment/{order}', [PaymentController::class, 'show'])->name('payment.show');
@@ -108,9 +119,13 @@ Route::prefix('admin')->middleware(['auth', 'verified'])->group(function () {
     // Subscription Monitoring
     Route::get('/subscriptions', [AdminSubscriptionController::class, 'index'])->name('admin.subscriptions.index');
 
-    // LIVE CHAT ADMIN (PENTING! INI YANG BIKIN ERROR SEBELUMNYA KALAU TIDAK ADA)
+    // LIVE CHAT ADMIN
     Route::get('/chat', [AdminChatController::class, 'index'])->name('admin.chat.index');
     Route::post('/chat/{user}/reply', [AdminChatController::class, 'store'])->name('admin.chat.store');
+
+    // KELOLA LAPORAN / TICKET (Admin)
+    Route::get('/reports', [AdminReportController::class, 'index'])->name('admin.reports.index');
+    Route::patch('/reports/{report}', [AdminReportController::class, 'update'])->name('admin.reports.update');
 });
 
 require __DIR__.'/auth.php';

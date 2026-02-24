@@ -33,9 +33,14 @@ class OrderController extends Controller
     }
 
     // UPDATE STATUS ORDER BIASA
+    // UPDATE STATUS ORDER BIASA
     public function update(Request $request, Order $order)
     {
-        $request->validate(['status' => 'required']);
+        // Validasi agar hanya status ini yang boleh masuk
+        $request->validate([
+            'status' => 'required|in:verified,shipped,completed,cancelled'
+        ]);
+
         $order->update(['status' => $request->status]);
         
         return back()->with('message', 'Status pesanan berhasil diperbarui.');

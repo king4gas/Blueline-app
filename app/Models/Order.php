@@ -13,6 +13,7 @@ class Order extends Model
         'user_id',
         'invoice_number',
         'total_price',
+        'unique_code', // <--- WAJIB DITAMBAHKAN
         'status',
         'payment_proof',
         'address', 
@@ -29,8 +30,6 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    // === TAMBAHAN BARU ===
-    // Relasi ini wajib ada agar fitur retur berjalan
     public function returnRequest()
     {
         return $this->hasOne(OrderReturn::class);

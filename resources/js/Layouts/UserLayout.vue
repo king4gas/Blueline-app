@@ -4,6 +4,9 @@ import { Link, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
+// === IMPORT KOMPONEN WIDGET REPORT ===
+import ReportWidget from '@/Components/ReportWidget.vue';
+
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const showingNavigationDropdown = ref(false);
@@ -103,7 +106,7 @@ onUnmounted(() => stopPolling());
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-950 flex flex-col font-sans">
+    <div class="min-h-screen bg-slate-950 flex flex-col font-sans relative">
         
         <nav class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -205,7 +208,6 @@ onUnmounted(() => stopPolling());
         </footer>
 
         <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-            
             <transition enter-active-class="transition ease-out duration-300" enter-from-class="opacity-0 translate-y-10 scale-95" enter-to-class="opacity-100 translate-y-0 scale-100" leave-active-class="transition ease-in duration-200" leave-from-class="opacity-100 translate-y-0 scale-100" leave-to-class="opacity-0 translate-y-10 scale-95">
                 <div v-if="isChatOpen" class="bg-slate-900 w-80 sm:w-96 h-[500px] rounded-2xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden mb-4">
                     
@@ -264,6 +266,8 @@ onUnmounted(() => stopPolling());
                 </div>
             </button>
         </div>
+
+        <ReportWidget v-if="user" />
 
     </div>
 </template>

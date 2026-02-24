@@ -2,63 +2,86 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cart;
 use App\Models\Order;
-use App\Models\Product;
+use App\Models\OrderItem;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CheckoutController extends Controller
 {
-    // 1. Tampilkan Halaman Form Checkout
-    public function show(Product $product)
+    // Fungsi untuk memproses Checkout dari halaman Keranjang (Cart)
+    public function process(Request $request)
     {
-        return Inertia::render('Checkout/Form', [
-            'product' => $product,
-            'user' => auth()->user() // Auto-fill data user
-        ]);
-    }
-
-    // 2. Proses Simpan Pesanan (Store)
-    public function store(Request $request)
-    {
-        // Validasi Input
+        // 1. Validasi Input (Hanya Alamat, HP, dan Item Keranjang. TANPA GAMBAR!)
         $request->validate([
-            'product_id' => 'required|exists:products,id',
+            'selected_cart_ids' => 'required|array|min:1',
+            'selected_cart_ids.*' => 'exists:carts,id',
             'address' => 'required|string|max:500',
             'phone' => 'required|string|max:20',
-            'note' => 'nullable|string',
         ]);
 
-        $product = Product::findOrFail($request->product_id);
+        // 2. Ambil data item keranjang yang dicentang user
+        $carts = Cart::with('product')
+            ->whereIn('id', $request->selected_cart_ids)
+            ->where('user_id', auth()->id())
+            ->get();
 
-        // Cek Stok (Khusus Hardware)
-        if ($product->type === 'hardware' && $product->stock <= 0) {
-            return back()->withErrors(['stock' => 'Maaf, stok barang ini habis.']);
+        if ($carts->isEmpty()) {
+            return back()->withErrors(['cart' => 'Keranjang kosong atau item tidak valid.']);
         }
 
-        // Gunakan Database Transaction agar aman
-        DB::transaction(function () use ($request, $product) {
-            // A. Buat Pesanan
-            Order::create([
+        // 3. Hitung Total Harga Asli & Cek Ketersediaan Stok
+        $subTotal = 0;
+        foreach ($carts as $cart) {
+            // Jika Hardware dan stok kurang dari yang mau dibeli, tolak!
+            if ($cart->product->type === 'hardware' && $cart->product->stock < $cart->quantity) {
+                return back()->withErrors(['stock' => 'Maaf, stok ' . $cart->product->name . ' tidak mencukupi.']);
+            }
+            $subTotal += ($cart->product->price * $cart->quantity);
+        }
+
+        // 4. Generate 3 Digit Kode Unik Skripsi
+        $uniqueCode = rand(111, 999);
+        $totalPay = $subTotal + $uniqueCode; // Total Tagihan = Subtotal + Kode Unik
+
+        // 5. Simpan Pesanan dengan Database Transaction (Biar Aman)
+        DB::transaction(function () use ($request, $carts, $uniqueCode, $totalPay) {
+            
+            // A. Buat record Order utama
+            $order = Order::create([
                 'user_id' => auth()->id(),
-                'product_id' => $product->id,
                 'invoice_number' => 'INV-' . strtoupper(Str::random(10)),
-                'total_price' => $product->price,
-                'status' => 'pending',
+                'total_price' => $totalPay,   // Harga + Kode Unik
+                'unique_code' => $uniqueCode, // Simpan kode uniknya
+                'status' => 'pending_payment',// Menunggu Pembayaran
                 'address' => $request->address,
                 'phone' => $request->phone,
-                'note' => $request->note,
+                'payment_proof' => null,      // KOSONGKAN BUKTI TRANSFER
             ]);
 
-            // B. Kurangi Stok (Jika Hardware)
-            if ($product->type === 'hardware') {
-                $product->decrement('stock');
+            // B. Pindahkan item dari Keranjang (Cart) ke Detail Pesanan (OrderItems)
+            foreach ($carts as $cart) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $cart->product_id,
+                    'quantity' => $cart->quantity,
+                    'price' => $cart->product->price,
+                ]);
+
+                // Kurangi stok database jika itu produk fisik/hardware
+                if ($cart->product->type === 'hardware') {
+                    $cart->product->decrement('stock', $cart->quantity);
+                }
+
+                // C. Hapus item tersebut dari keranjang user karena sudah jadi pesanan
+                $cart->delete();
             }
         });
 
-        // Redirect ke halaman sukses (atau Riwayat Pesanan nanti)
-        return redirect()->route('home')->with('message', 'Pesanan berhasil dibuat! Admin akan menghubungi Anda.');
+        // 6. Alihkan user ke halaman Riwayat Pesanan
+        return redirect()->route('orders.index')
+            ->with('message', 'Pesanan berhasil dibuat! Silakan lanjutkan pembayaran sesuai instruksi.');
     }
 }

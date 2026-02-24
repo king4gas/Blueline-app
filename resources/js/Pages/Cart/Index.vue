@@ -4,7 +4,6 @@ import UserLayout from '@/Layouts/UserLayout.vue';
 import { ref, computed } from 'vue';
 import Swal from 'sweetalert2';
 
-// Agar Navbar tidak refresh saat pindah halaman
 defineOptions({ layout: UserLayout });
 
 const props = defineProps({ carts: Array });
@@ -16,7 +15,7 @@ const form = useForm({
     selected_cart_ids: [],
     address: '',
     phone: '',
-    payment_proof: null,
+    // payment_proof: null, // <--- SUDAH DIHAPUS
 });
 
 // === LOGIKA HITUNG TOTAL ===
@@ -24,7 +23,6 @@ const grandTotal = computed(() => {
     let total = 0;
     if (props.carts) {
         props.carts.forEach(cart => {
-            // Hanya hitung item yang dicentang
             if (selectedItems.value.includes(cart.id)) {
                 total += cart.product.price * cart.quantity;
             }
@@ -33,14 +31,11 @@ const grandTotal = computed(() => {
     return total;
 });
 
-// Cek apakah semua item terpilih
 const isAllSelected = computed(() => {
     return props.carts.length > 0 && selectedItems.value.length === props.carts.length;
 });
 
 // === ACTIONS ===
-
-// 1. Fitur Select All
 const toggleSelectAll = () => {
     if (isAllSelected.value) {
         selectedItems.value = [];
@@ -49,7 +44,6 @@ const toggleSelectAll = () => {
     }
 };
 
-// 2. Fitur Toggle Per Item
 const toggleSelection = (id) => {
     if (selectedItems.value.includes(id)) {
         selectedItems.value = selectedItems.value.filter(item => item !== id);
@@ -58,26 +52,19 @@ const toggleSelection = (id) => {
     }
 };
 
-// 3. Fitur Update Quantity (+ / -)
 const updateQuantity = (cart, change) => {
     const newQuantity = cart.quantity + change;
-    
-    // Jangan biarkan kurang dari 1
     if (newQuantity < 1) return;
 
-    // Panggil route PATCH di backend
     router.patch(route('cart.update', cart.id), { 
         quantity: newQuantity 
-    }, {
-        preserveScroll: true, // Halaman tidak loncat ke atas
-    });
+    }, { preserveScroll: true });
 };
 
-// 4. Buka Modal Checkout
 const openModal = () => {
     if (selectedItems.value.length === 0) {
         Swal.fire({
-            icon: 'info', title: 'Oops...', text: 'Pilih minimal satu produk untuk checkout!',
+            icon: 'warning', title: 'Oops...', text: 'Pilih minimal satu produk untuk checkout!',
             background: '#1e293b', color: '#fff', confirmButtonColor: '#0891b2',
         });
         return;
@@ -86,21 +73,19 @@ const openModal = () => {
     showPaymentModal.value = true;
 };
 
-// 5. Submit Order
+// === SUBMIT ORDER (ALUR BARU) ===
 const submitOrder = () => {
+    // Hapus forceFormData karena tidak kirim file gambar lagi
     form.post(route('checkout.process'), {
-        forceFormData: true, 
         onSuccess: () => {
             showPaymentModal.value = false;
             form.reset();
             selectedItems.value = [];
-            Swal.fire({
-                title: 'Pesanan Berhasil!', text: 'Silakan tunggu verifikasi admin.', icon: 'success',
-                background: '#1e293b', color: '#fff', confirmButtonColor: '#0891b2',
-            });
+            // Redirect biasanya di-handle oleh Controller (ke orders.index), 
+            // jadi kita tidak perlu Swal sukses panjang lebar di sini.
         },
         onError: () => {
-             Swal.fire({ title: 'Gagal!', text: 'Pastikan data terisi benar.', icon: 'error', background: '#1e293b', color: '#fff', });
+             Swal.fire({ title: 'Gagal!', text: 'Pastikan data terisi benar.', icon: 'error', background: '#1e293b', color: '#fff' });
         }
     });
 };
@@ -162,7 +147,6 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                             <h3 class="font-bold text-white truncate text-lg">{{ cart.product.name }}</h3>
                             <div class="flex items-center justify-center sm:justify-start gap-2 mt-1 mb-2">
                                 <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 uppercase border border-slate-700">{{ cart.product.type }}</span>
-                                <span class="text-sm text-slate-500">Stok Tersedia</span>
                             </div>
                             <div class="text-lg font-black text-cyan-400">{{ formatRupiah(cart.product.price) }}</div>
                         </div>
@@ -196,7 +180,7 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                             <span class="font-medium text-white">{{ selectedItems.length }} produk</span>
                         </div>
                         <div class="border-t border-slate-800 pt-4 flex justify-between items-end mb-8">
-                            <span class="text-slate-500 font-medium">Total Tagihan</span>
+                            <span class="text-slate-500 font-medium">Subtotal</span>
                             <span class="text-2xl font-black text-cyan-400">{{ formatRupiah(grandTotal) }}</span>
                         </div>
                         <button 
@@ -205,7 +189,7 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                             :class="selectedItems.length > 0 ? 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed'" 
                             :disabled="selectedItems.length === 0"
                         >
-                            Checkout ({{ selectedItems.length }}) &rarr;
+                            Buat Pesanan ({{ selectedItems.length }}) &rarr;
                         </button>
                     </div>
                 </div>
@@ -214,34 +198,58 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
 
         <div v-if="showPaymentModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity" @click="showPaymentModal = false"></div>
+            
             <div class="bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden relative z-10 border border-slate-800 animate-in fade-in zoom-in duration-300">
+                
                 <div class="bg-slate-800/50 px-8 py-6 border-b border-slate-700 flex justify-between items-center backdrop-blur-sm">
-                    <h3 class="font-bold text-xl text-white">Konfirmasi Pesanan</h3>
-                    <button @click="showPaymentModal = false" class="text-slate-500 hover:text-white transition">✕</button>
+                    <h3 class="font-bold text-xl text-white">Detail Pengiriman</h3>
+                    <button @click="showPaymentModal = false" class="text-slate-500 hover:text-white transition text-2xl">✕</button>
                 </div>
+
                 <div class="p-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
-                    <div class="bg-slate-950 rounded-2xl p-5 mb-8 border border-slate-800 text-center relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl"></div>
-                        <p class="text-xs uppercase tracking-wider font-bold text-cyan-500 mb-2">Total Pembayaran</p>
-                        <div class="text-3xl font-black text-white mb-4 relative z-10">{{ formatRupiah(grandTotal) }}</div>
-                        <div class="text-sm text-slate-400 bg-slate-900 py-3 rounded-xl border border-slate-800 relative z-10">Transfer ke BCA: <span class="font-bold font-mono text-cyan-400 select-all">123-456-7890</span></div>
+                    
+                    <div class="bg-slate-950/50 rounded-2xl p-5 mb-8 border border-slate-800/50 text-center">
+                        <p class="text-sm text-slate-400 mb-1">Total Tagihan (Estimasi)</p>
+                        <div class="text-2xl font-black text-cyan-400">{{ formatRupiah(grandTotal) }}</div>
+                        <p class="text-[10px] text-yellow-500 mt-2">*Kode unik pembayaran akan diberikan di halaman selanjutnya.</p>
                     </div>
+
                     <form @submit.prevent="submitOrder" class="space-y-5">
-                        <div><label class="block text-sm font-bold text-slate-400 mb-2">Alamat Lengkap</label><textarea v-model="form.address" required rows="2" class="w-full rounded-xl bg-slate-950 border-slate-700 text-white focus:border-cyan-500 focus:ring-cyan-500 placeholder-slate-600 transition" placeholder="Jalan, No. Rumah, Kota..."></textarea></div>
-                        <div><label class="block text-sm font-bold text-slate-400 mb-2">No. WhatsApp</label><input type="text" v-model="form.phone" required class="w-full rounded-xl bg-slate-950 border-slate-700 text-white focus:border-cyan-500 focus:ring-cyan-500 placeholder-slate-600 transition" placeholder="0812..."></div>
+                        
                         <div>
-                            <label class="block text-sm font-bold text-slate-400 mb-2">Bukti Transfer</label>
-                            <input type="file" @input="form.payment_proof = $event.target.files[0]" required accept="image/*" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-slate-800 file:text-cyan-400 hover:file:bg-slate-700 transition cursor-pointer border border-slate-700 rounded-xl bg-slate-950">
-                            <p class="text-xs text-slate-500 mt-1">Format: JPG, PNG (Max 2MB)</p>
+                            <label class="block text-sm font-bold text-slate-400 mb-2">Alamat Lengkap / Pemasangan</label>
+                            <textarea 
+                                v-model="form.address" 
+                                required rows="3" 
+                                class="w-full rounded-xl bg-slate-950 border-slate-700 text-white focus:border-cyan-500 focus:ring-cyan-500 placeholder-slate-600 transition" 
+                                placeholder="Jalan, No. Rumah, Patokan..."></textarea>
+                            <div v-if="form.errors.address" class="text-red-400 text-xs mt-1">{{ form.errors.address }}</div>
                         </div>
-                        <div class="flex gap-4 pt-4">
-                            <button type="button" @click="showPaymentModal = false" class="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-slate-800 transition">Batal</button>
-                            <button type="submit" :disabled="form.processing" class="flex-1 py-3 rounded-xl font-bold bg-cyan-600 text-white hover:bg-cyan-500 transition shadow-lg shadow-cyan-900/50 disabled:opacity-70">{{ form.processing ? 'Memproses...' : 'Kirim Bukti' }}</button>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-400 mb-2">No. WhatsApp Aktif</label>
+                            <input 
+                                type="text" 
+                                v-model="form.phone" 
+                                required 
+                                class="w-full rounded-xl bg-slate-950 border-slate-700 text-white focus:border-cyan-500 focus:ring-cyan-500 placeholder-slate-600 transition" 
+                                placeholder="081234567890">
+                            <div v-if="form.errors.phone" class="text-red-400 text-xs mt-1">{{ form.errors.phone }}</div>
                         </div>
+
+                        <div class="flex gap-4 pt-4 mt-4 border-t border-slate-800/50">
+                            <button type="button" @click="showPaymentModal = false" class="flex-1 py-3.5 rounded-xl font-bold text-slate-400 hover:bg-slate-800 transition">Batal</button>
+                            <button type="submit" :disabled="form.processing" class="flex-1 py-3.5 rounded-xl font-bold bg-cyan-600 text-white hover:bg-cyan-500 transition shadow-lg shadow-cyan-900/50 flex items-center justify-center gap-2 disabled:opacity-70">
+                                <span>{{ form.processing ? 'Memproses...' : 'Lanjutkan Pembayaran' }}</span>
+                                <span v-if="!form.processing">&rarr;</span>
+                            </button>
+                        </div>
+
                     </form>
                 </div>
             </div>
         </div>
+
     </div>
 </template>
 

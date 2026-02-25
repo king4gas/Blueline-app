@@ -85,6 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/subscription/renew', [SubscriptionController::class, 'renew'])->name('subscription.renew');
     Route::get('/payment/{order}', [PaymentController::class, 'show'])->name('payment.show');
     Route::post('/payment/{order}/upload', [PaymentController::class, 'upload'])->name('payment.upload');
+    Route::patch('/orders/{order}/complete', [App\Http\Controllers\OrderController::class, 'completeByUser'])->name('orders.complete');
 });
 
 // === 3. ADMIN ROUTES ===

@@ -15,10 +15,9 @@ const form = useForm({
     selected_cart_ids: [],
     address: '',
     phone: '',
-    // payment_proof: null, // <--- SUDAH DIHAPUS
 });
 
-// === LOGIKA HITUNG TOTAL ===
+// === LOGIKA HITUNG TOTAL HARGA ===
 const grandTotal = computed(() => {
     let total = 0;
     if (props.carts) {
@@ -53,12 +52,30 @@ const toggleSelection = (id) => {
 };
 
 const updateQuantity = (cart, change) => {
+    // Tambahan keamanan: Jangan jalankan jika tipe adalah service
+    if (cart.product.type === 'service') return;
+
     const newQuantity = cart.quantity + change;
     if (newQuantity < 1) return;
+
+    // Cek stok untuk hardware
+    if (cart.product.type === 'hardware' && newQuantity > cart.product.stock) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Stok Terbatas',
+            text: `Maaf, sisa stok ${cart.product.name} hanya ${cart.product.stock} unit.`,
+            background: '#1e293b', color: '#fff', confirmButtonColor: '#0891b2'
+        });
+        return;
+    }
 
     router.patch(route('cart.update', cart.id), { 
         quantity: newQuantity 
     }, { preserveScroll: true });
+};
+
+const deleteCart = (cartId) => {
+    router.delete(route('cart.destroy', cartId), { preserveScroll: true });
 };
 
 const openModal = () => {
@@ -73,16 +90,13 @@ const openModal = () => {
     showPaymentModal.value = true;
 };
 
-// === SUBMIT ORDER (ALUR BARU) ===
+// === SUBMIT ORDER ===
 const submitOrder = () => {
-    // Hapus forceFormData karena tidak kirim file gambar lagi
     form.post(route('checkout.process'), {
         onSuccess: () => {
             showPaymentModal.value = false;
             form.reset();
             selectedItems.value = [];
-            // Redirect biasanya di-handle oleh Controller (ke orders.index), 
-            // jadi kita tidak perlu Swal sukses panjang lebar di sini.
         },
         onError: () => {
              Swal.fire({ title: 'Gagal!', text: 'Pastikan data terisi benar.', icon: 'error', background: '#1e293b', color: '#fff' });
@@ -101,7 +115,7 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
             
             <h1 class="text-3xl font-black text-white mb-8 flex items-center gap-3">
                 <span class="text-cyan-400">🛒</span> Keranjang Belanja
-                <span class="text-sm font-bold text-cyan-400 bg-slate-900 border border-slate-700 px-3 py-1 rounded-full">{{ carts.length }} Item</span>
+                <span class="text-sm font-bold text-cyan-400 bg-slate-900 border border-slate-700 px-3 py-1 rounded-full">{{ carts.length }} Macam</span>
             </h1>
 
             <div v-if="carts.length === 0" class="flex flex-col items-center justify-center bg-slate-900 rounded-[2rem] p-16 border border-slate-800 border-dashed text-center">
@@ -139,36 +153,54 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                                 >
                             </div>
                             <div class="w-24 h-24 bg-slate-950 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-700">
-                                <img :src="cart.product.image" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition">
+                                <img v-if="cart.product.image" :src="cart.product.image.startsWith('http') || cart.product.image.includes('storage') ? cart.product.image : `/storage/${cart.product.image}`" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition">
+                                <div v-else class="w-full h-full flex items-center justify-center text-2xl">
+                                    {{ cart.product.type === 'service' ? '🌐' : '📦' }}
+                                </div>
                             </div>
                         </div>
 
                         <div class="flex-1 min-w-0 w-full text-center sm:text-left">
                             <h3 class="font-bold text-white truncate text-lg">{{ cart.product.name }}</h3>
                             <div class="flex items-center justify-center sm:justify-start gap-2 mt-1 mb-2">
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-cyan-400 uppercase border border-slate-700">{{ cart.product.type }}</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase border"
+                                      :class="cart.product.type === 'service' ? 'bg-cyan-900/30 text-cyan-400 border-cyan-800' : 'bg-emerald-900/30 text-emerald-400 border-emerald-800'">
+                                    {{ cart.product.type }}
+                                </span>
                             </div>
-                            <div class="text-lg font-black text-cyan-400">{{ formatRupiah(cart.product.price) }}</div>
+                            <div class="text-lg font-black text-cyan-400">
+                                {{ formatRupiah(cart.product.price * cart.quantity) }}
+                            </div>
                         </div>
 
                         <div class="flex items-center gap-3 bg-slate-950 rounded-xl p-1 border border-slate-800">
-                            <button 
-                                @click="updateQuantity(cart, -1)" 
-                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition disabled:opacity-50"
-                                :disabled="cart.quantity <= 1"
-                            >-</button>
                             
-                            <span class="w-8 text-center font-bold text-white text-sm select-none">{{ cart.quantity }}</span>
-                            
-                            <button 
-                                @click="updateQuantity(cart, 1)" 
-                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                            >+</button>
+                            <template v-if="cart.product.type === 'service'">
+                                <div class="px-3 py-1 text-slate-400 text-xs font-bold cursor-not-allowed text-center select-none w-full">
+                                    🛡️ 1 Paket
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <button 
+                                    @click="updateQuantity(cart, -1)" 
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition disabled:opacity-50"
+                                    :disabled="cart.quantity <= 1"
+                                >-</button>
+                                
+                                <span class="w-8 text-center font-bold text-white text-sm select-none">{{ cart.quantity }}</span>
+                                
+                                <button 
+                                    @click="updateQuantity(cart, 1)" 
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                                >+</button>
+                            </template>
+
                         </div>
 
-                        <Link :href="route('cart.destroy', cart.id)" method="delete" as="button" class="p-3 rounded-full text-slate-600 hover:bg-slate-950 hover:text-red-500 transition sm:ml-2" title="Hapus Item">
+                        <button @click="deleteCart(cart.id)" class="p-3 rounded-full text-slate-600 hover:bg-slate-950 hover:text-red-500 transition sm:ml-2" title="Hapus Item">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                        </Link>
+                        </button>
                     </div>
                 </div>
 
@@ -177,7 +209,7 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                         <h3 class="font-bold text-white mb-6 text-lg">Ringkasan</h3>
                         <div class="flex justify-between items-center mb-4 text-sm text-slate-400">
                             <span>Item Dipilih</span>
-                            <span class="font-medium text-white">{{ selectedItems.length }} produk</span>
+                            <span class="font-medium text-white">{{ selectedItems.length }} macam</span>
                         </div>
                         <div class="border-t border-slate-800 pt-4 flex justify-between items-end mb-8">
                             <span class="text-slate-500 font-medium">Subtotal</span>
@@ -211,7 +243,7 @@ const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', 
                     <div class="bg-slate-950/50 rounded-2xl p-5 mb-8 border border-slate-800/50 text-center">
                         <p class="text-sm text-slate-400 mb-1">Total Tagihan (Estimasi)</p>
                         <div class="text-2xl font-black text-cyan-400">{{ formatRupiah(grandTotal) }}</div>
-                        <p class="text-[10px] text-yellow-500 mt-2">*Kode unik pembayaran akan diberikan di halaman selanjutnya.</p>
+                        <p class="text-[10px] text-yellow-500 mt-2">*Kode unik pembayaran akan ditambahkan otomatis oleh sistem.</p>
                     </div>
 
                     <form @submit.prevent="submitOrder" class="space-y-5">

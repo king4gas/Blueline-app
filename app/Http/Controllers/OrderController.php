@@ -70,4 +70,17 @@ class OrderController extends Controller
 
         return back()->with('message', 'Pengajuan retur berhasil dikirim. Menunggu admin.');
     }
+    public function completeByUser(\App\Models\Order $order)
+    {
+        // Cek agar user tidak bisa menyelesaikan pesanan orang lain
+        if ($order->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $order->update([
+            'status' => 'finished' // Atau 'completed' jika struktur DB Anda begitu
+        ]);
+
+        return redirect()->back();
+    }
 }

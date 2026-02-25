@@ -36,8 +36,9 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             // === LOGIKA HITUNG KERANJANG ===
+            // === LOGIKA HITUNG MACAM BARANG ===
             'cartCount' => Auth::check() 
-                ? (int) Cart::where('user_id', Auth::id())->sum('quantity') 
+                ? (int) Cart::where('user_id', Auth::id())->count() 
                 : 0,
             // ===============================
             'flash' => [

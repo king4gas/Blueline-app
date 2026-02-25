@@ -25,7 +25,6 @@ const isSending = ref(false);
 let pollingInterval = null;
 
 const toggleChat = () => {
-    // Cek Login Dulu
     if (!user.value) {
         Swal.fire({
             icon: 'info',
@@ -133,8 +132,15 @@ onUnmounted(() => stopPolling());
 
                     <div class="hidden sm:flex sm:items-center sm:ml-6 gap-4">
                         
-                        <Link v-if="user" :href="route('cart.index')" class="relative text-slate-400 hover:text-cyan-400 transition p-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                        <Link v-if="user" :href="route('cart.index')" class="relative text-slate-400 hover:text-cyan-400 transition p-2 group">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                            </svg>
+                            <span v-if="$page.props.cartCount > 0" 
+                                class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-slate-950 transition-all duration-300 group-hover:scale-110">
+                                {{ $page.props.cartCount }}
+                            </span>
                         </Link>
 
                         <div class="ml-3 relative" v-if="user">
@@ -181,8 +187,16 @@ onUnmounted(() => stopPolling());
 
                 <div class="pt-4 pb-4 border-t border-slate-800">
                     <div v-if="user" class="px-4">
-                        <div class="font-medium text-base text-white">{{ user.name }}</div>
-                        <div class="font-medium text-sm text-slate-500">{{ user.email }}</div>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="font-medium text-base text-white">{{ user.name }}</div>
+                                <div class="font-medium text-sm text-slate-500">{{ user.email }}</div>
+                            </div>
+                            <Link :href="route('cart.index')" class="relative text-cyan-400 p-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                                <span v-if="$page.props.cartCount > 0" class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white">{{ $page.props.cartCount }}</span>
+                            </Link>
+                        </div>
                         <div class="mt-3 space-y-2">
                             <Link :href="route('subscription.index')" class="block px-4 py-2 text-base font-medium text-cyan-400 hover:text-white hover:bg-slate-800 rounded-md">Layanan Saya</Link>
                             <Link :href="route('my-orders')" class="block px-4 py-2 text-base font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-md">Pesanan Saya</Link>

@@ -1,7 +1,7 @@
 <script setup>
-import { Head, Link, router, usePage } from '@inertiajs/vue3'; // Tambah usePage
+import { Head, Link, router, usePage } from '@inertiajs/vue3'; 
 import UserLayout from '@/Layouts/UserLayout.vue';
-import { ref } from 'vue'; // Import ref untuk modal
+import { ref, computed } from 'vue'; // Tambah computed
 import Swal from 'sweetalert2';
 
 defineOptions({ layout: UserLayout });
@@ -14,6 +14,15 @@ const page = usePage();
 const user = page.props.auth.user;
 
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+
+// === LOGIC FILTER KATEGORI ===
+const activeFilter = ref('all'); // State untuk nyimpen tab yang aktif
+
+// Computed untuk memfilter produk sesuai tab yang diklik
+const filteredProducts = computed(() => {
+    if (activeFilter.value === 'all') return props.products;
+    return props.products.filter(product => product.type === activeFilter.value);
+});
 
 // === LOGIC MODAL DETAIL PRODUK ===
 const showModal = ref(false);
@@ -28,13 +37,12 @@ const closeModal = () => {
     showModal.value = false;
     setTimeout(() => {
         selectedProduct.value = null;
-    }, 200); // Delay sedikit biar animasi close mulus
+    }, 200); 
 };
 
 // === LOGIC ADD TO CART ===
 const addToCart = (product) => {
     if (!user) {
-        // Tutup modal dulu jika ada
         showModal.value = false;
         
         Swal.fire({
@@ -54,7 +62,7 @@ const addToCart = (product) => {
         router.post(route('cart.store'), { product_id: product.id }, {
             preserveScroll: true,
             onSuccess: () => {
-                showModal.value = false; // Tutup modal setelah berhasil
+                showModal.value = false; 
                 const Toast = Swal.mixin({
                     toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
                     didOpen: (toast) => { toast.onmouseenter = Swal.stopTimer; toast.onmouseleave = Swal.resumeTimer; }
@@ -70,22 +78,48 @@ const addToCart = (product) => {
     <Head title="Produk & Layanan" />
 
     <div class="min-h-screen bg-slate-950 py-12 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-7xl mx-auto mb-12 text-center">
+        <div class="max-w-7xl mx-auto mb-10 text-center">
             <h1 class="text-4xl font-black text-white mb-4 tracking-tight">
                 Katalog <span class="text-cyan-400">Digital</span>
             </h1>
-            <p class="text-slate-400 max-w-2xl mx-auto text-lg">
+            <p class="text-slate-400 max-w-2xl mx-auto text-lg mb-8">
                 Solusi internet fiber optik berkecepatan tinggi dan perangkat jaringan terbaik untuk kebutuhan Anda.
             </p>
+
+            <div class="flex flex-wrap justify-center gap-2 sm:inline-flex bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-full p-2 shadow-lg">
+                <button @click="activeFilter = 'all'"
+                    :class="activeFilter === 'all' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'"
+                    class="px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 w-full sm:w-auto">
+                    Semua Kategori
+                </button>
+                <button @click="activeFilter = 'service'"
+                    :class="activeFilter === 'service' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'"
+                    class="px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 w-full sm:w-auto">
+                    🌐 Layanan Internet
+                </button>
+                <button @click="activeFilter = 'hardware'"
+                    :class="activeFilter === 'hardware' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'"
+                    class="px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 w-full sm:w-auto">
+                    📦 Perangkat Keras
+                </button>
+            </div>
         </div>
 
         <div class="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div v-for="product in products" :key="product.id" 
+            
+            <div v-if="filteredProducts.length === 0" class="col-span-full text-center py-16 bg-slate-900 border border-slate-800 rounded-[2rem]">
+                <div class="text-6xl mb-4 opacity-50">📂</div>
+                <h3 class="text-white font-bold text-xl">Produk Tidak Ditemukan</h3>
+                <p class="text-slate-400">Belum ada item di kategori ini.</p>
+            </div>
+
+            <div v-for="product in filteredProducts" :key="product.id" 
                 class="group bg-slate-900 rounded-[2rem] border border-slate-800 overflow-hidden hover:border-cyan-500/50 hover:shadow-[0_0_30px_rgba(8,145,178,0.2)] transition duration-500 flex flex-col cursor-pointer"
                 @click="openModal(product)"
             >
                 <div class="aspect-[4/3] relative overflow-hidden bg-slate-950 p-6 flex items-center justify-center">
-                    <img :src="product.image" class="w-full h-full object-cover rounded-xl group-hover:scale-110 transition duration-700 shadow-lg opacity-90 group-hover:opacity-100">
+                    <img :src="product.image && (product.image.startsWith('http') || product.image.includes('storage')) ? product.image : `/storage/${product.image}`" 
+                         class="w-full h-full object-cover rounded-xl group-hover:scale-110 transition duration-700 shadow-lg opacity-90 group-hover:opacity-100">
                     
                     <div class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur shadow-lg px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border border-slate-700 z-10" 
                          :class="product.type === 'service' ? 'text-cyan-400' : 'text-emerald-400'">
@@ -117,7 +151,7 @@ const addToCart = (product) => {
             </div>
         </div>
 
-        <div v-if="showModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 px-4">
+        <div v-if="showModal && selectedProduct" class="fixed inset-0 z-[100] flex items-center justify-center p-4 px-4">
             <div class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm transition-opacity" @click="closeModal"></div>
 
             <div class="bg-slate-900 w-full max-w-4xl rounded-[2rem] shadow-2xl relative z-10 overflow-hidden animate-in fade-in zoom-in duration-300 border border-slate-700 flex flex-col md:flex-row max-h-[90vh] md:max-h-auto overflow-y-auto md:overflow-visible">
@@ -127,7 +161,7 @@ const addToCart = (product) => {
                 </button>
 
                 <div class="w-full md:w-1/2 bg-slate-950 p-8 flex items-center justify-center relative">
-                    <img :src="selectedProduct.image" class="w-full h-64 md:h-full object-cover rounded-2xl shadow-2xl border border-slate-800">
+                    <img :src="selectedProduct.image && (selectedProduct.image.startsWith('http') || selectedProduct.image.includes('storage')) ? selectedProduct.image : `/storage/${selectedProduct.image}`" class="w-full h-64 md:h-full object-cover rounded-2xl shadow-2xl border border-slate-800">
                     <div class="absolute top-4 left-4">
                         <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border bg-slate-900/90 backdrop-blur"
                             :class="selectedProduct.type === 'service' ? 'text-cyan-400 border-cyan-500/30' : 'text-emerald-400 border-emerald-500/30'">

@@ -6,6 +6,9 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const showingSidebar = ref(false);
 
+// Mengambil jumlah order masuk dari middleware (Inertia Props)
+const incomingOrderCount = computed(() => page.props.incomingOrderCount || 0);
+
 const logout = () => {
     router.post(route('logout'));
 };
@@ -23,16 +26,16 @@ const isActive = (routeName, params = {}) => {
 <template>
     <div class="min-h-screen bg-slate-950 flex font-sans text-slate-100">
         
-        <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 transition-transform duration-300 transform md:translate-x-0 md:static md:inset-0"
+        <aside class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 transition-transform duration-300 transform md:translate-x-0 md:static md:inset-0 flex flex-col"
             :class="showingSidebar ? 'translate-x-0' : '-translate-x-full'">
             
-            <div class="flex items-center justify-center h-20 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
+            <div class="flex items-center justify-center h-20 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm shrink-0">
                 <Link :href="route('admin.dashboard')" class="text-2xl font-black text-white tracking-tighter">
                     BLUE<span class="text-cyan-400">ADMIN</span>
                 </Link>
             </div>
 
-            <nav class="mt-6 px-4 space-y-2 overflow-y-auto h-[calc(100vh-5rem)] pb-10 scrollbar-hide">
+            <nav class="mt-6 px-4 space-y-2 overflow-y-auto flex-1 pb-10 scrollbar-hide">
                 
                 <Link :href="route('admin.dashboard')" 
                     class="flex items-center px-4 py-3 rounded-xl transition font-bold"
@@ -65,9 +68,18 @@ const isActive = (routeName, params = {}) => {
                 <div class="pt-6 pb-2 px-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">Operasional</div>
 
                 <Link :href="route('admin.orders.index')" 
-                    class="flex items-center px-4 py-3 rounded-xl transition font-medium"
+                    class="flex items-center justify-between px-4 py-3 rounded-xl transition font-medium"
                     :class="isActive('admin.orders.index') ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-400 hover:bg-slate-800 hover:text-white'">
-                    <span class="mr-3">📋</span> Pesanan Masuk
+                    <div class="flex items-center">
+                        <span class="mr-3">📋</span> Pesanan Masuk
+                    </div>
+                    
+                    <div v-if="incomingOrderCount >= 0" class="relative flex items-center justify-center">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-5 w-5 md:h-6 md:w-6 bg-red-500 text-white font-black text-[10px] md:text-xs items-center justify-center border border-slate-900 shadow-md">
+                            {{ incomingOrderCount }}
+                        </span>
+                    </div>
                 </Link>
 
                 <Link :href="route('admin.chat.index')" 

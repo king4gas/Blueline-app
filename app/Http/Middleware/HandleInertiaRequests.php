@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Models\Cart; // <--- Import Model Cart
+use App\Models\Order; // <--- Import Model Order untuk notif admin
 use Illuminate\Support\Facades\Auth; // <--- Import Auth
 
 class HandleInertiaRequests extends Middleware
@@ -35,12 +36,25 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
-            // === LOGIKA HITUNG KERANJANG ===
-            // === LOGIKA HITUNG MACAM BARANG ===
+            
+            // Hitung Keranjang (User)
             'cartCount' => Auth::check() 
-                ? (int) Cart::where('user_id', Auth::id())->count() 
+                ? (int) \App\Models\Cart::where('user_id', Auth::id())->count() 
                 : 0,
-            // ===============================
+
+            // === LOGIKA FINAL NOTIFIKASI ADMIN ===
+            // Menghitung semua order, KECUALI yang statusnya sudah Selesai/Dibatalkan
+            'incomingOrderCount' => Auth::check() && Auth::user()->role === 'admin' 
+                ? (int) \App\Models\Order::whereNotIn('status', [
+                    'completed', 
+                    'finished', 
+                    'returned', 
+                    'canceled', 
+                    'rejected'
+                  ])->count() 
+                : 0,
+            // =====================================
+
             'flash' => [
                 'message' => fn () => $request->session()->get('message'),
             ],

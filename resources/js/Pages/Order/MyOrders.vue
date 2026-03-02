@@ -31,6 +31,19 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('id-ID', options);
 };
 
+// === PENGECEKAN TIPE PRODUK (BISA RETUR ATAU TIDAK) ===
+const canReturn = (order) => {
+    // Jika pesanan memiliki banyak item
+    if (order.items && order.items.length > 0) {
+        return order.items.some(item => item.product?.type === 'hardware');
+    }
+    // Jika pesanan hanya 1 produk langsung
+    if (order.product) {
+        return order.product.type === 'hardware';
+    }
+    return false;
+};
+
 // === LOGIC MODAL RETUR ===
 const openReturnModal = (order) => {
     selectedOrder.value = order;
@@ -66,18 +79,17 @@ const submitReturn = () => {
 const completeOrder = (orderId) => {
     Swal.fire({
         title: 'Konfirmasi Pesanan Selesai?',
-        text: "Pastikan Anda telah menerima barang dalam kondisi baik. Setelah pesanan diselesaikan, Anda tidak dapat mengajukan pengembalian (retur).",
+        text: "Pastikan Anda telah menerima barang atau layanan sudah aktif. Setelah pesanan diselesaikan, Anda tidak dapat mengajukan pengembalian.",
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#10b981', // Emerald color
+        confirmButtonColor: '#10b981', 
         cancelButtonColor: '#475569',
-        confirmButtonText: 'Ya, Pesanan Selesai',
+        confirmButtonText: 'Ya, Selesai',
         cancelButtonText: 'Batal',
         background: '#1e293b',
         color: '#fff'
     }).then((result) => {
         if (result.isConfirmed) {
-            // Gunakan router.patch untuk mengubah status menjadi 'finished' (atau sesuai di Controller Anda)
             router.patch(route('orders.complete', orderId), {}, {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -130,7 +142,7 @@ const completeOrder = (orderId) => {
                                         'bg-blue-500/20 text-blue-500 border-blue-500/50': order.status === 'verified',
                                         'bg-cyan-500/20 text-cyan-500 border-cyan-500/50': order.status === 'shipped',
                                         'bg-emerald-500/20 text-emerald-500 border-emerald-500/50': order.status === 'completed',
-                                        'bg-purple-500/20 text-purple-400 border-purple-500/50': order.status === 'finished', // Tambahan warna untuk Finished
+                                        'bg-purple-500/20 text-purple-400 border-purple-500/50': order.status === 'finished', 
                                         'bg-red-500/20 text-red-500 border-red-500/50': order.status === 'return_requested' || order.status === 'returned',
                                     }">
                                     {{ 
@@ -199,7 +211,7 @@ const completeOrder = (orderId) => {
                                         
                                         <div v-if="order.status === 'completed' && !order.return_request" class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto justify-end">
                                             
-                                            <button @click="openReturnModal(order)"
+                                            <button v-if="canReturn(order)" @click="openReturnModal(order)"
                                                     class="px-4 py-2.5 bg-slate-900 hover:bg-red-600/10 text-slate-300 hover:text-red-400 border border-slate-700 hover:border-red-500/50 rounded-lg transition text-sm font-bold flex items-center justify-center gap-2 w-full sm:w-auto">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                                                 Ajukan Retur
@@ -208,7 +220,7 @@ const completeOrder = (orderId) => {
                                             <button @click="completeOrder(order.id)"
                                                     class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 rounded-lg transition text-sm font-bold flex items-center justify-center gap-2 w-full sm:w-auto shadow-lg shadow-emerald-900/20">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                                Pesanan Diterima
+                                                Pesanan Diterima / Aktif
                                             </button>
 
                                         </div>

@@ -31,7 +31,7 @@ const deleteProduct = (id) => {
         background: '#1e293b',
         color: '#fff'
     }).then((result) => {
-        if (result.isConfirmed) router.delete(route('admin.products.destroy', id));
+        if (result.isConfirmed) router.delete(route('admin.products.destroy', id), { preserveScroll: true });
     });
 };
 </script>
@@ -46,9 +46,11 @@ const deleteProduct = (id) => {
                     <h2 class="font-black text-3xl text-white">{{ pageTitle }}</h2>
                     <p class="text-slate-400 text-sm mt-1">Daftar {{ props.filterType === 'service' ? 'paket internet' : 'perangkat keras' }} aktif.</p>
                 </div>
+                
                 <Link :href="route('admin.products.create', { type: props.filterType })" 
-                      class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-900/50 transition">
-                    + Tambah {{ props.filterType === 'service' ? 'Layanan' : 'Produk' }}
+                      class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-900/50 transition flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Tambah {{ props.filterType === 'service' ? 'Layanan' : 'Produk' }}
                 </Link>
             </div>
 
@@ -67,19 +69,37 @@ const deleteProduct = (id) => {
                         </thead>
                         <tbody class="divide-y divide-slate-800">
                             <tr v-for="product in products" :key="product.id" class="hover:bg-slate-800/50 transition">
-                                <td class="px-6 py-4"><img :src="product.image" class="w-12 h-12 rounded-lg object-cover border border-slate-700"></td>
-                                <td class="px-6 py-4 font-bold text-white">{{ product.name }}<div class="text-[10px] text-slate-500 uppercase mt-1">{{ product.type }}</div></td>
+                                <td class="px-6 py-4">
+                                    <img :src="product.image && (product.image.startsWith('http') || product.image.includes('storage')) ? product.image : `/storage/${product.image}`" 
+                                         class="w-12 h-12 rounded-lg object-cover border border-slate-700 bg-slate-950">
+                                </td>
+                                <td class="px-6 py-4 font-bold text-white">
+                                    {{ product.name }}
+                                    <div class="text-[10px] text-slate-500 uppercase mt-1">{{ product.type }}</div>
+                                </td>
                                 <td class="px-6 py-4 text-cyan-400 font-mono font-bold">{{ formatRupiah(product.price) }}</td>
-                                <td v-if="props.filterType === 'service'" class="px-6 py-4"><div class="text-white font-bold">{{ product.speed || '-' }}</div><div class="text-xs">{{ product.duration }} Hari</div></td>
-                                <td v-else class="px-6 py-4"><span :class="product.stock > 0 ? 'text-emerald-400' : 'text-red-400 font-bold'">{{ product.stock }} Unit</span></td>
+                                
+                                <td v-if="props.filterType === 'service'" class="px-6 py-4">
+                                    <div class="text-white font-bold">{{ product.speed || '-' }}</div>
+                                    <div class="text-xs">{{ product.duration || 30 }} Hari</div>
+                                </td>
+                                <td v-else class="px-6 py-4">
+                                    <span :class="product.stock > 0 ? 'text-emerald-400' : 'text-red-400 font-bold'">{{ product.stock }} Unit</span>
+                                </td>
+                                
                                 <td class="px-6 py-4 text-center">
                                     <div class="flex justify-center gap-2">
-                                        <Link :href="route('admin.products.edit', product.id)" class="p-2 bg-slate-800 hover:bg-slate-700 text-yellow-500 rounded-lg">✏️</Link>
-                                        <button @click="deleteProduct(product.id)" class="p-2 bg-slate-800 hover:bg-slate-700 text-red-500 rounded-lg">🗑️</button>
+                                        <Link :href="route('admin.products.edit', product.id)" class="p-2 bg-slate-800 hover:bg-slate-700 text-yellow-500 rounded-lg transition" title="Edit">✏️</Link>
+                                        <button @click="deleteProduct(product.id)" class="p-2 bg-slate-800 hover:bg-red-500/20 text-red-500 hover:text-red-400 rounded-lg transition" title="Hapus">🗑️</button>
                                     </div>
                                 </td>
                             </tr>
-                            <tr v-if="products.length === 0"><td colspan="6" class="px-6 py-10 text-center text-slate-500">Belum ada data.</td></tr>
+                            <tr v-if="products.length === 0">
+                                <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+                                    <div class="text-4xl mb-3 opacity-50">📂</div>
+                                    Belum ada data {{ props.filterType === 'service' ? 'layanan' : 'produk' }}.
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>

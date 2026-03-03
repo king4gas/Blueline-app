@@ -3,10 +3,14 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
+// Membaca parameter '?type=' dari URL
+const urlParams = new URLSearchParams(window.location.search);
+const defaultType = urlParams.get('type') || 'hardware'; // Default ke hardware jika kosong
+
 const form = useForm({
     name: '',
     price: '',
-    type: 'hardware',
+    type: defaultType, // <--- Mengunci nilai
     description: '',
     image: null,
     stock: '',
@@ -34,7 +38,9 @@ const submit = () => {
     
     <AdminLayout>
         <div class="mb-6">
-            <h2 class="text-2xl font-black text-white">Tambah Produk Baru</h2>
+            <h2 class="text-2xl font-black text-white">
+                Tambah {{ form.type === 'service' ? 'Layanan Internet' : 'Produk Fisik' }}
+            </h2>
             <p class="text-slate-400 text-sm">Isi formulir di bawah untuk menambahkan item ke katalog.</p>
         </div>
 
@@ -50,12 +56,13 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <label class="block text-sm font-bold text-slate-200 mb-2">Jenis Produk</label>
-                    <select v-model="form.type" 
-                            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-500 transition">
-                        <option value="hardware">📦 Hardware (Barang Fisik)</option>
-                        <option value="service">📡 Service (Layanan Internet)</option>
-                    </select>
+                    <label class="block text-sm font-bold text-slate-200 mb-2">Jenis Kategori (Otomatis)</label>
+                    <div class="w-full bg-slate-950/50 border border-slate-800 rounded-xl p-3 font-bold cursor-not-allowed flex items-center gap-2"
+                         :class="form.type === 'service' ? 'text-cyan-400' : 'text-emerald-400'">
+                        <span v-if="form.type === 'service'">📡 Service (Layanan Internet)</span>
+                        <span v-else>📦 Hardware (Barang Fisik)</span>
+                    </div>
+                    <input type="hidden" v-model="form.type">
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -107,7 +114,7 @@ const submit = () => {
                 </div>
 
                 <div class="flex justify-end gap-3 pt-6 border-t border-slate-800">
-                    <Link :href="route('admin.products.index')" 
+                    <Link :href="route('admin.products.index', { type: form.type })" 
                           class="px-6 py-3 text-slate-400 bg-slate-800 rounded-xl hover:bg-slate-700 hover:text-white font-bold transition">
                         Batal
                     </Link>

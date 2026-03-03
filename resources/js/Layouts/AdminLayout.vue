@@ -6,8 +6,10 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const showingSidebar = ref(false);
 
-// Mengambil jumlah order masuk dari middleware (Inertia Props)
+// Mengambil jumlah notifikasi dari middleware
 const incomingOrderCount = computed(() => page.props.incomingOrderCount || 0);
+const pendingReportCount = computed(() => page.props.pendingReportCount || 0);
+const unreadChatCount = computed(() => page.props.unreadChatCount || 0);
 
 const logout = () => {
     router.post(route('logout'));
@@ -73,8 +75,7 @@ const isActive = (routeName, params = {}) => {
                     <div class="flex items-center">
                         <span class="mr-3">📋</span> Pesanan Masuk
                     </div>
-                    
-                    <div v-if="incomingOrderCount >= 0" class="relative flex items-center justify-center">
+                    <div v-if="incomingOrderCount > 0" class="relative flex items-center justify-center">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-5 w-5 md:h-6 md:w-6 bg-red-500 text-white font-black text-[10px] md:text-xs items-center justify-center border border-slate-900 shadow-md">
                             {{ incomingOrderCount }}
@@ -83,15 +84,31 @@ const isActive = (routeName, params = {}) => {
                 </Link>
 
                 <Link :href="route('admin.chat.index')" 
-                    class="flex items-center px-4 py-3 rounded-xl transition font-medium mb-1"
+                    class="flex items-center justify-between px-4 py-3 rounded-xl transition font-medium mb-1"
                     :class="isActive('admin.chat.index') ? 'bg-slate-800 text-cyan-400 border border-slate-700 shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'">
-                    <span class="mr-3">💬</span> Live Chat
+                    <div class="flex items-center">
+                        <span class="mr-3">💬</span> Live Chat
+                    </div>
+                    <div v-if="unreadChatCount > 0" class="relative flex items-center justify-center">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-5 w-5 md:h-6 md:w-6 bg-red-500 text-white font-black text-[10px] md:text-xs items-center justify-center border border-slate-900 shadow-md">
+                            {{ unreadChatCount }}
+                        </span>
+                    </div>
                 </Link>
 
                 <Link :href="route('admin.reports.index')" 
-                    class="flex items-center px-4 py-3 rounded-xl transition font-medium mb-1"
+                    class="flex items-center justify-between px-4 py-3 rounded-xl transition font-medium mb-1"
                     :class="isActive('admin.reports.index') ? 'bg-slate-800 text-red-400 border border-slate-700 shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-white'">
-                    <span class="mr-3">🚨</span> Pusat Bantuan
+                    <div class="flex items-center">
+                        <span class="mr-3">🚨</span> Pusat Bantuan
+                    </div>
+                    <div v-if="pendingReportCount > 0" class="relative flex items-center justify-center">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-5 w-5 md:h-6 md:w-6 bg-red-500 text-white font-black text-[10px] md:text-xs items-center justify-center border border-slate-900 shadow-md">
+                            {{ pendingReportCount }}
+                        </span>
+                    </div>
                 </Link>
 
             </nav>

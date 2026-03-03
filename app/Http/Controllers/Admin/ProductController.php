@@ -21,16 +21,19 @@ class ProductController extends Controller
 
         return Inertia::render('Admin/Products/Index', [
             'products' => $query->latest()->get(),
-            'filters' => $request->only(['type'])
+            // PERBAIKAN 1: Sesuaikan nama variabel dengan props di Index.vue
+            'filterType' => $request->type 
         ]);
     }
 
-    public function create()
+    // PERBAIKAN 2: Tangkap request URL dan kirim type-nya ke Create.vue
+    public function create(Request $request)
     {
-        return Inertia::render('Admin/Products/Create');
+        return Inertia::render('Admin/Products/Create', [
+            'type' => $request->query('type', 'hardware')
+        ]);
     }
 
-    // === PERBAIKAN DI SINI (STORE) ===
     public function store(Request $request)
     {
         $request->validate([
@@ -39,7 +42,7 @@ class ProductController extends Controller
             'type' => 'required|in:service,hardware',
             'description' => 'nullable|string',
             'image' => 'nullable|image|max:2048',
-            'stock' => 'nullable|integer', // <--- 1. Validasi Stok ditambahkan
+            'stock' => 'nullable|integer',
             'speed' => 'nullable|string',
             'duration' => 'nullable|integer'
         ]);
@@ -54,7 +57,7 @@ class ProductController extends Controller
             'slug' => Str::slug($request->name) . '-' . Str::random(5),
             'type' => $request->type,
             'price' => $request->price,
-            'stock' => $request->stock, // <--- 2. Data Stok DISIMPAN ke Database
+            'stock' => $request->stock,
             'description' => $request->description,
             'image' => $imagePath,
             'speed' => $request->speed,
@@ -72,7 +75,6 @@ class ProductController extends Controller
         ]);
     }
 
-    // === PERBAIKAN DI SINI (UPDATE) ===
     public function update(Request $request, Product $product)
     {
         $request->validate([
@@ -81,7 +83,7 @@ class ProductController extends Controller
             'type' => 'required|in:service,hardware',
             'description' => 'nullable|string',
             'image' => 'nullable|image|max:2048',
-            'stock' => 'nullable|integer', // <--- 3. Validasi Stok ditambahkan
+            'stock' => 'nullable|integer',
             'speed' => 'nullable|string',
             'duration' => 'nullable|integer'
         ]);
@@ -91,7 +93,7 @@ class ProductController extends Controller
             'slug' => Str::slug($request->name) . '-' . Str::random(5),
             'type' => $request->type,
             'price' => $request->price,
-            'stock' => $request->stock, // <--- 4. Data Stok DIUPDATE ke Database
+            'stock' => $request->stock,
             'description' => $request->description,
             'speed' => $request->speed,
             'duration' => $request->duration

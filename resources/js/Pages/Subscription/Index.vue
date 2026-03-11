@@ -2,39 +2,51 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import UserLayout from '@/Layouts/UserLayout.vue';
 import Swal from 'sweetalert2';
+import { computed } from 'vue';
 
-// Menggunakan Layout Utama
 defineOptions({ layout: UserLayout });
 
-// Menerima data dari Controller
 const props = defineProps({
     subscription: Object 
 });
 
-// Helper Format Rupiah
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-// === LOGIC BARU: PERPANJANG LANGSUNG (SKIP CART) ===
+// Menghitung total tagihan aman (berjaga-jaga jika backend belum mengirim data denda)
+const penaltyFee = computed(() => props.subscription?.penalty_fee || 0);
+const isTerminated = computed(() => props.subscription?.is_terminated || false);
+const totalBill = computed(() => (props.subscription?.price || 0) + penaltyFee.value);
+
 const renewSubscription = () => {
     if (!props.subscription) return;
 
+    let textMessage = `Tagihan pokok sebesar ${formatRupiah(props.subscription.price)} akan dibuat.`;
+    
+    // Tambahan teks jika ada denda
+    if (penaltyFee.value > 0) {
+        textMessage = `Tagihan pokok ${formatRupiah(props.subscription.price)} + Denda Keterlambatan ${formatRupiah(penaltyFee.value)}.\nTotal yang harus dibayar: ${formatRupiah(totalBill.value)}. Lanjutkan?`;
+    } else {
+        textMessage += " Lanjutkan?";
+    }
+
     Swal.fire({
-        title: 'Perpanjang Layanan?',
-        text: `Tagihan sebesar ${formatRupiah(props.subscription.price)} akan dibuat untuk perpanjangan 30 hari. Lanjutkan?`,
-        icon: 'question',
+        title: isTerminated.value ? 'Aktifkan Kembali Layanan?' : 'Perpanjang Layanan?',
+        text: textMessage,
+        icon: isTerminated.value ? 'warning' : 'question',
         showCancelButton: true,
         confirmButtonText: 'Ya, Bayar Sekarang',
         cancelButtonText: 'Batal',
-        background: '#1e293b', // Dark theme background
-        color: '#fff', // White text
-        confirmButtonColor: '#0891b2', // Cyan-600
-        cancelButtonColor: '#475569', // Slate-600
+        background: '#1e293b', 
+        color: '#fff', 
+        confirmButtonColor: isTerminated.value ? '#10b981' : '#0891b2', 
+        cancelButtonColor: '#475569', 
         reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
-            // Mengirim request ke Controller untuk buat Invoice & Redirect
             router.post(route('subscription.renew'), { 
-                product_id: props.subscription.product.id 
+                product_id: props.subscription.product.id,
+                // Kita kirimkan info total harga jika diperlukan oleh backend
+                expected_total: totalBill.value 
             });
         }
     });
@@ -59,29 +71,61 @@ const renewSubscription = () => {
 
             <div v-if="subscription" class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 
-                <div class="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 relative overflow-hidden shadow-2xl">
+                <div v-if="isTerminated" class="bg-red-500/10 border border-red-500/50 rounded-2xl p-4 flex items-start gap-4 animate-pulse">
+                    <span class="text-2xl">⚠️</span>
+                    <div>
+                        <h3 class="text-red-400 font-bold text-lg">Layanan Diputus Sementara</h3>
+                        <p class="text-red-300/80 text-sm">Layanan internet Anda telah diisolasi karena keterlambatan pembayaran lebih dari 2 bulan. Segera lunasi tunggakan beserta denda untuk mengaktifkan kembali layanan.</p>
+                    </div>
+                </div>
+                <div v-else-if="penaltyFee > 0" class="bg-yellow-500/10 border border-yellow-500/50 rounded-2xl p-4 flex items-start gap-4">
+                    <span class="text-2xl">⏳</span>
+                    <div>
+                        <h3 class="text-yellow-400 font-bold text-lg">Denda Keterlambatan</h3>
+                        <p class="text-yellow-200/80 text-sm">Anda telah melewati batas waktu pembayaran. Denda sebesar 5% telah ditambahkan ke tagihan Anda.</p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 relative overflow-hidden shadow-2xl"
+                     :class="{'border-red-500/30': isTerminated, 'border-yellow-500/30': penaltyFee > 0 && !isTerminated}">
                     
                     <div class="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
-                        <div>
-                            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950 border border-slate-700 text-xs font-bold uppercase tracking-wider mb-3 shadow-sm">
-                                <span class="w-2 h-2 rounded-full" :class="subscription.is_active ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
-                                {{ subscription.is_active ? 'Aktif' : 'Kedaluwarsa' }}
+                    <div class="flex flex-col md:flex-row justify-between items-start gap-6 relative z-10">
+                        <div class="w-full md:w-1/2">
+                            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950 border border-slate-700 text-white text-xs font-bold uppercase tracking-wider mb-3 shadow-sm">
+                                <span class="w-2 h-2 rounded-full" 
+                                      :class="isTerminated ? 'bg-red-500' : (subscription.is_active ? 'bg-emerald-500 animate-pulse' : 'bg-yellow-500')"></span>
+                                {{ isTerminated ? 'ISOLASI / PUTUS' : (subscription.is_active ? 'Aktif' : 'Menunggu Pembayaran') }}
                             </div>
-                            <h2 class="text-3xl font-black text-white mb-1">{{ subscription.product.name }}</h2>
-                            <p class="text-cyan-400 font-bold text-lg">{{ formatRupiah(subscription.price) }} <span class="text-slate-500 text-sm">/ bulan</span></p>
+                            <h2 class="text-3xl font-black text-white mb-4">{{ subscription.product.name }}</h2>
+                            
+                            <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-400">Harga Paket / Bulan</span>
+                                    <span class="text-white">{{ formatRupiah(subscription.price) }}</span>
+                                </div>
+                                <div v-if="penaltyFee > 0" class="flex justify-between text-sm text-red-400 border-b border-slate-800 pb-2">
+                                    <span>Denda Keterlambatan (5%)</span>
+                                    <span>+ {{ formatRupiah(penaltyFee) }}</span>
+                                </div>
+                                <div class="flex justify-between text-lg font-black pt-2" :class="penaltyFee > 0 ? 'text-red-400' : 'text-cyan-400'">
+                                    <span>Total Tagihan</span>
+                                    <span>{{ formatRupiah(totalBill) }}</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="w-full md:w-auto">
+                        <div class="w-full md:w-auto mt-4 md:mt-0 flex flex-col items-end justify-center h-full">
                             <button 
                                 @click="renewSubscription" 
-                                class="w-full md:w-auto px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-900/50 transition transform active:scale-95 flex items-center justify-center gap-2"
+                                class="w-full md:w-auto px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-900/50 transition transform active:scale-95 flex items-center justify-center gap-2"
+                                :class="{'bg-red-600 hover:bg-red-500 shadow-red-900/50': penaltyFee > 0}"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-                                {{ subscription.is_active ? 'Perpanjang Paket' : 'Aktifkan Kembali' }}
+                                {{ isTerminated ? 'Lunasi & Aktifkan Kembali' : (penaltyFee > 0 ? 'Bayar Tagihan & Denda' : 'Perpanjang Paket') }}
                             </button>
-                            <p class="text-slate-500 text-[10px] text-center mt-2 uppercase tracking-wide">Langsung Bayar</p>
+                            <p class="text-slate-500 text-[10px] text-center mt-3 uppercase tracking-wide w-full">Pembayaran Otomatis</p>
                         </div>
                     </div>
 
@@ -93,14 +137,15 @@ const renewSubscription = () => {
                             <p class="text-white font-bold">{{ subscription.start_date }}</p>
                         </div>
                         <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-                            <p class="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Berakhir Tanggal</p>
-                            <p class="text-white font-bold">{{ subscription.expired_date }}</p>
+                            <p class="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Jatuh Tempo</p>
+                            <p class="font-bold" :class="isTerminated || penaltyFee > 0 ? 'text-red-400' : 'text-white'">{{ subscription.expired_date }}</p>
                         </div>
                          <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
                             <p class="text-slate-500 text-[10px] font-bold uppercase mb-1 tracking-wider">Status Pembayaran</p>
-                            <p class="text-emerald-400 font-bold flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                                Lunas
+                            <p class="font-bold flex items-center gap-2" :class="isTerminated || penaltyFee > 0 ? 'text-red-400' : 'text-emerald-400'">
+                                <svg v-if="isTerminated || penaltyFee > 0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                {{ isTerminated || penaltyFee > 0 ? 'Menunggak' : 'Lunas' }}
                             </p>
                         </div>
                     </div>
@@ -116,27 +161,11 @@ const renewSubscription = () => {
                             <div class="h-full rounded-full transition-all duration-1000 ease-out relative"
                                  :class="subscription.days_remaining < 5 ? 'bg-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'"
                                  :style="{ width: `${100 - subscription.progress}%` }">
-                                 
                                  <div class="absolute inset-0 bg-white/20 w-full h-full animate-[shimmer_2s_infinite] skew-x-12"></div>
                             </div>
                         </div>
-                         <p class="text-slate-500 text-xs mt-3">*Layanan internet akan otomatis terputus jika tidak diperpanjang sebelum tanggal berakhir.</p>
+                        <p class="text-slate-500 text-xs mt-3">*Sistem akan menambahkan denda keterlambatan 5% jika melewati tanggal jatuh tempo.</p>
                     </div>
-                </div>
-
-                <div class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 border border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div class="flex items-center gap-4">
-                        <div class="p-3 bg-blue-500/10 rounded-full text-blue-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-                        </div>
-                        <div>
-                            <h3 class="text-white font-bold text-lg">Butuh Kecepatan Lebih?</h3>
-                            <p class="text-slate-400 text-sm">Upgrade paket Anda ke kecepatan 100 Mbps sekarang.</p>
-                        </div>
-                    </div>
-                    <Link :href="route('products.index')" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 hover:text-white text-slate-200 rounded-lg text-sm font-bold transition border border-slate-600">
-                        Lihat Paket Lain
-                    </Link>
                 </div>
 
             </div>
@@ -158,7 +187,6 @@ const renewSubscription = () => {
 </template>
 
 <style scoped>
-/* Animasi Shimmer pada Progress Bar */
 @keyframes shimmer {
   0% { transform: translateX(-150%) skewX(-12deg); }
   100% { transform: translateX(150%) skewX(-12deg); }

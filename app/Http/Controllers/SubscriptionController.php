@@ -135,7 +135,7 @@ class SubscriptionController extends Controller
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'invoice_number' => $invoiceNumber,
-                'total_price' => $totalPrice, // <--- Harga total sudah termasuk denda jika ada
+                'total_price' => $totalPrice, // Harga total sudah termasuk denda jika ada
                 'status' => 'pending_payment', 
                 'payment_proof' => null, 
                 'address' => 'Digital Subscription (Auto Renew)', 
@@ -146,6 +146,7 @@ class SubscriptionController extends Controller
             OrderItem::create([
                 'order_id' => $order->id,
                 'product_id' => $product->id,
+                'product_name' => $product->name, // Nama produk diisi
                 'quantity' => 1,
                 'price' => $product->price,
             ]);
@@ -154,16 +155,15 @@ class SubscriptionController extends Controller
             if ($penaltyFee > 0) {
                 OrderItem::create([
                     'order_id' => $order->id,
-                    'product_id' => null, // Denda bukan produk fisik
-                    'product_name' => 'Denda Keterlambatan (5%)', // Simpan sebagai nama produk manual
+                    'product_id' => $product->id, // Menggunakan ID produk yang sama agar tidak error
+                    'product_name' => 'Denda Keterlambatan (5%) - ' . $product->name, // Nama disesuaikan
                     'quantity' => 1,
                     'price' => $penaltyFee,
                 ]);
             }
 
             // Arahkan ke Halaman Pesanan
-            // Ubah dari payment.show ke orders.index karena di sistem ini Anda tidak pakai payment.show
-            return to_route('orders.index')->with('message', 'Tagihan berhasil dibuat. Silakan lakukan pembayaran.');
+            return to_route('my-orders')->with('message', 'Tagihan berhasil dibuat. Silakan lakukan pembayaran.');
         });
     }
 }

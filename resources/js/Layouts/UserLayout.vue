@@ -149,7 +149,10 @@ onUnmounted(() => stopPolling());
                                     Halo, {{ user.name }}
                                 </span>
                                 <div class="flex gap-2">
-                                    <Link :href="route('subscription.index')" class="px-3 py-2 text-xs font-bold text-white bg-cyan-700 rounded-lg hover:bg-cyan-600 transition border border-cyan-600">
+                                    
+                                    <Link :href="route('subscription.index')" 
+                                          :class="$page.props.auth.is_subscribed ? 'bg-cyan-700 hover:bg-cyan-600 border-cyan-600' : 'bg-slate-700 hover:bg-slate-600 border-slate-600'" 
+                                          class="px-3 py-2 text-xs font-bold text-white rounded-lg transition border">
                                         Layanan Saya
                                     </Link>
                                     <Link :href="route('my-orders')" class="px-3 py-2 text-xs font-bold text-white bg-slate-800 rounded-lg hover:bg-slate-700 transition border border-slate-700">
@@ -198,7 +201,12 @@ onUnmounted(() => stopPolling());
                             </Link>
                         </div>
                         <div class="mt-3 space-y-2">
-                            <Link :href="route('subscription.index')" class="block px-4 py-2 text-base font-medium text-cyan-400 hover:text-white hover:bg-slate-800 rounded-md">Layanan Saya</Link>
+
+                            <Link :href="route('subscription.index')" 
+                                  :class="$page.props.auth.is_subscribed ? 'text-cyan-400' : 'text-slate-400'" 
+                                  class="block px-4 py-2 text-base font-medium hover:text-white hover:bg-slate-800 rounded-md">
+                                Layanan Saya
+                            </Link>
                             <Link :href="route('my-orders')" class="block px-4 py-2 text-base font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-md">Pesanan Saya</Link>
                             <button @click="logout" class="w-full text-left block px-4 py-2 text-base font-medium text-red-400 hover:text-red-300 hover:bg-slate-800 rounded-md">Logout</button>
                         </div>

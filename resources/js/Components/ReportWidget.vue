@@ -1,3 +1,10 @@
+Ah, baik! Di kode yang Anda kirimkan, ikon *headset*-nya sudah dimasukkan, tetapi ada sedikit *error* di bagian logikanya. Ikon *headset* tersebut kurang atribut `v-if="!isOpen"`, sehingga fungsi `v-else` pada ikon silang (X) di bawahnya tidak akan berjalan dengan benar.
+
+Selain itu, saya juga menambahkan class `relative` pada tombol utama agar tulisan *tooltip* "Pusat Bantuan" saat di-hover posisinya rapi dan tidak bergeser.
+
+Berikut adalah kode **`ReportWidget.vue`** yang sudah diperbaiki sepenuhnya. Silakan *copy-paste* semua kode ini:
+
+```vue
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useForm } from '@inertiajs/vue3';
@@ -120,12 +127,11 @@ const getStatusText = (status) => {
             </div>
         </transition>
 
-        <button @click="toggleWidget" class="w-14 h-14 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-[0_0_20px_rgba(8,145,178,0.5)] flex items-center justify-center transition-transform hover:scale-110 active:scale-95 group">
+        <button @click="toggleWidget" class="w-14 h-14 bg-cyan-600 hover:bg-cyan-500 text-white rounded-full shadow-[0_0_20px_rgba(8,145,178,0.5)] flex items-center justify-center transition-transform hover:scale-110 active:scale-95 group relative">
             
-            <svg v-if="!isOpen" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            <svg v-if="!isOpen" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
             </svg>
             
             <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -144,3 +150,5 @@ const getStatusText = (status) => {
 .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 </style>
+
+```

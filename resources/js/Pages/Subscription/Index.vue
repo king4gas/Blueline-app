@@ -12,19 +12,28 @@ const props = defineProps({
 
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
-// Menghitung total tagihan aman (berjaga-jaga jika backend belum mengirim data denda)
-const penaltyFee = computed(() => props.subscription?.penalty_fee || 0);
+// PERBAIKAN UTAMA: Menggunakan Math.round(Number()) agar string desimal "500000.00" tetap dibaca 500000
+const basePrice = computed(() => {
+    return Math.round(Number(props.subscription?.price) || 0);
+});
+
+const penaltyFee = computed(() => {
+    return Math.round(Number(props.subscription?.penalty_fee) || 0);
+});
+
 const isTerminated = computed(() => props.subscription?.is_terminated || false);
-const totalBill = computed(() => (props.subscription?.price || 0) + penaltyFee.value);
+
+// Sekarang dijamin penjumlahan matematika antar angka murni, bukan teks
+const totalBill = computed(() => basePrice.value + penaltyFee.value);
 
 const renewSubscription = () => {
     if (!props.subscription) return;
 
-    let textMessage = `Tagihan pokok sebesar ${formatRupiah(props.subscription.price)} akan dibuat.`;
+    let textMessage = `Tagihan pokok sebesar ${formatRupiah(basePrice.value)} akan dibuat.`;
     
     // Tambahan teks jika ada denda
     if (penaltyFee.value > 0) {
-        textMessage = `Tagihan pokok ${formatRupiah(props.subscription.price)} + Denda Keterlambatan ${formatRupiah(penaltyFee.value)}.\nTotal yang harus dibayar: ${formatRupiah(totalBill.value)}. Lanjutkan?`;
+        textMessage = `Tagihan pokok ${formatRupiah(basePrice.value)} + Denda Keterlambatan ${formatRupiah(penaltyFee.value)}.\nTotal yang harus dibayar: ${formatRupiah(totalBill.value)}. Lanjutkan?`;
     } else {
         textMessage += " Lanjutkan?";
     }
@@ -45,7 +54,6 @@ const renewSubscription = () => {
         if (result.isConfirmed) {
             router.post(route('subscription.renew'), { 
                 product_id: props.subscription.product.id,
-                // Kita kirimkan info total harga jika diperlukan oleh backend
                 expected_total: totalBill.value 
             });
         }
@@ -103,7 +111,7 @@ const renewSubscription = () => {
                             <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 space-y-2">
                                 <div class="flex justify-between text-sm">
                                     <span class="text-slate-400">Harga Paket / Bulan</span>
-                                    <span class="text-white">{{ formatRupiah(subscription.price) }}</span>
+                                    <span class="text-white">{{ formatRupiah(basePrice) }}</span>
                                 </div>
                                 <div v-if="penaltyFee > 0" class="flex justify-between text-sm text-red-400 border-b border-slate-800 pb-2">
                                     <span>Denda Keterlambatan (5%)</span>

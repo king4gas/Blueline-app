@@ -1,7 +1,14 @@
+Siap, saya mengerti. Tombol "Semua Produk" sudah saya hapus, dan ukuran tombol untuk dua kategori tersebut sudah dinormalkan kembali agar tidak terlalu memakan tempat, namun tetap memiliki warna dan kontras yang jelas saat sedang aktif.
+
+Karena "Semua Produk" dihapus, saya juga mengatur agar kategori **Perangkat Keras (hardware)** menjadi kategori yang terbuka secara *default* saat halaman dimuat.
+
+Berikut adalah kode lengkap terbarunya. Silakan *copy-paste* seluruh kode ini:
+
+```vue
 <script setup>
 import { Head, Link, router, usePage } from '@inertiajs/vue3'; 
 import UserLayout from '@/Layouts/UserLayout.vue';
-import { ref, computed } from 'vue'; // Tambah computed
+import { ref, computed } from 'vue'; 
 import Swal from 'sweetalert2';
 
 defineOptions({ layout: UserLayout });
@@ -16,11 +23,10 @@ const user = page.props.auth.user;
 const formatRupiah = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
 
 // === LOGIC FILTER KATEGORI ===
-const activeFilter = ref('all'); // State untuk nyimpen tab yang aktif
+const activeFilter = ref('hardware'); // Default ke hardware karena 'all' dihapus
 
 // Computed untuk memfilter produk sesuai tab yang diklik
 const filteredProducts = computed(() => {
-    if (activeFilter.value === 'all') return props.products;
     return props.products.filter(product => product.type === activeFilter.value);
 });
 
@@ -82,35 +88,39 @@ const addToCart = (product) => {
             <h1 class="text-4xl font-black text-white mb-4 tracking-tight">
                 Katalog <span class="text-cyan-400">Digital</span>
             </h1>
-            <p class="text-slate-400 max-w-2xl mx-auto text-lg mb-8">
+            <p class="text-slate-400 max-w-2xl mx-auto text-lg mb-10">
                 Solusi internet fiber optik berkecepatan tinggi dan perangkat jaringan terbaik untuk kebutuhan Anda.
             </p>
 
-            <div class="flex flex-wrap justify-center gap-2 sm:inline-flex bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-full p-2 shadow-lg">
-                <button @click="activeFilter = 'all'"
-                    :class="activeFilter === 'all' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'"
-                    class="px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 w-full sm:w-auto">
-                    Semua Kategori
-                </button>
-                <button @click="activeFilter = 'service'"
-                    :class="activeFilter === 'service' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'"
-                    class="px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 w-full sm:w-auto">
-                    🌐 Layanan Internet
-                </button>
+            <div class="flex flex-wrap justify-center items-center gap-4 sm:gap-6 mb-12">
+                
                 <button @click="activeFilter = 'hardware'"
-                    :class="activeFilter === 'hardware' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'"
-                    class="px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 w-full sm:w-auto">
-                    📦 Perangkat Keras
+                    :class="activeFilter === 'hardware' 
+                        ? 'bg-emerald-600 border-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]' 
+                        : 'bg-slate-900/80 border-slate-800 text-slate-500 hover:bg-slate-800 hover:text-slate-300 hover:border-slate-700'"
+                    class="px-6 py-3 rounded-xl text-sm sm:text-base font-bold transition-all duration-300 flex items-center justify-center gap-2.5 border w-full sm:w-auto">
+                    <span :class="activeFilter === 'hardware' ? 'opacity-100' : 'opacity-50 grayscale'">📦</span>
+                    Perangkat Keras
                 </button>
+
+                <button @click="activeFilter = 'service'"
+                    :class="activeFilter === 'service' 
+                        ? 'bg-cyan-600 border-cyan-500 text-white shadow-[0_0_20px_rgba(8,145,178,0.4)]' 
+                        : 'bg-slate-900/80 border-slate-800 text-slate-500 hover:bg-slate-800 hover:text-slate-300 hover:border-slate-700'"
+                    class="px-6 py-3 rounded-xl text-sm sm:text-base font-bold transition-all duration-300 flex items-center justify-center gap-2.5 border w-full sm:w-auto">
+                    <span :class="activeFilter === 'service' ? 'opacity-100' : 'opacity-50 grayscale'">🌐</span>
+                    Layanan Internet
+                </button>
+
             </div>
-        </div>
+            </div>
 
         <div class="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             
-            <div v-if="filteredProducts.length === 0" class="col-span-full text-center py-16 bg-slate-900 border border-slate-800 rounded-[2rem]">
+            <div v-if="filteredProducts.length === 0" class="col-span-full text-center py-20 bg-slate-900 border border-slate-800 rounded-[2rem]">
                 <div class="text-6xl mb-4 opacity-50">📂</div>
                 <h3 class="text-white font-bold text-xl">Produk Tidak Ditemukan</h3>
-                <p class="text-slate-400">Belum ada item di kategori ini.</p>
+                <p class="text-slate-400 mt-2">Belum ada item di kategori ini.</p>
             </div>
 
             <div v-for="product in filteredProducts" :key="product.id" 
@@ -215,3 +225,5 @@ const addToCart = (product) => {
 
     </div>
 </template>
+
+```

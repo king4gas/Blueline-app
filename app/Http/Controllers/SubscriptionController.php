@@ -81,8 +81,9 @@ class SubscriptionController extends Controller
                     'is_active' => $isActive,
                     'is_terminated' => $isTerminated,
                     'penalty_fee' => $penaltyFee,
+                    'price' => $item->product->price,
+                    'total_bill' => $item->product->price + $penaltyFee, // <-- PERBAIKAN: Tambahkan ini agar langsung terjumlahkan otomatis
                     'progress' => min(max($progress, 0), 100),
-                    'price' => $item->product->price
                 ];
             }
         }

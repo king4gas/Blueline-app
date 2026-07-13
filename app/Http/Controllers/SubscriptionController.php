@@ -10,13 +10,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Inertia\Inertia;
+// Tambahan untuk fitur Email:
+use Illuminate\Support\Facades\Mail;
+use App\Mail\NewOrderNotification;
 
 class SubscriptionController extends Controller
 {
     // === 1. METHOD INDEX: MENAMPILKAN HALAMAN LAYANAN SAYA ===
     public function index()
     {
-        // Cari Order Terakhir yang statusnya SUKSES (Verified/Shipped/Completed/Finished)
         $lastSubscriptionOrder = Order::with('items.product')
             ->where('user_id', auth()->id())
             ->whereIn('status', ['verified', 'shipped', 'completed', 'finished'])
@@ -34,39 +36,31 @@ class SubscriptionController extends Controller
             });
 
             if ($item) {
-                // Asumsi durasi paket standar = 30 Hari
                 $duration = $item->product->duration ?? 30; 
                 
                 $startDate = Carbon::parse($lastSubscriptionOrder->created_at);
                 $expiredDate = $startDate->copy()->addDays($duration);
                 $now = Carbon::now('Asia/Makassar');
 
-                // --- LOGIKA DENDA & PUTUS ---
-                // Denda 5%: Dimulai pada tanggal 1 di bulan berikutnya setelah masa aktif habis
                 $penaltyDate = $expiredDate->copy()->addMonth()->startOfMonth();
-                
-                // Putus/Isolasi: 2 Bulan setelah masa expired
                 $terminationDate = $expiredDate->copy()->addMonths(2);
-
-                $daysRemaining = $now->diffInDays($expiredDate, false); // Nilai minus jika nunggak
+                $daysRemaining = $now->diffInDays($expiredDate, false);
                 
                 $penaltyFee = 0;
                 $isTerminated = false;
                 $isActive = true;
 
-                // Cek status keterlambatan
                 if ($now->greaterThanOrEqualTo($terminationDate)) {
                     $isTerminated = true;
                     $isActive = false;
-                    $penaltyFee = $item->product->price * 0.05; // Denda 5%
+                    $penaltyFee = $item->product->price * 0.05; 
                 } elseif ($now->greaterThanOrEqualTo($penaltyDate)) {
                     $isActive = false;
-                    $penaltyFee = $item->product->price * 0.05; // Denda 5%
+                    $penaltyFee = $item->product->price * 0.05; 
                 } elseif ($daysRemaining <= 0) {
-                    $isActive = false; // Masa tenggang sebelum denda
+                    $isActive = false; 
                 }
 
-                // Progress Bar Logic (Dibalik agar sesuai animasi Vue: 0% = penuh, 100% = habis)
                 $progress = 100;
                 if ($daysRemaining > 0) {
                     $daysPassed = $duration - $daysRemaining;
@@ -81,9 +75,8 @@ class SubscriptionController extends Controller
                     'is_active' => $isActive,
                     'is_terminated' => $isTerminated,
                     'penalty_fee' => $penaltyFee,
-                    'price' => $item->product->price,
-                    'total_bill' => $item->product->price + $penaltyFee, // <-- PERBAIKAN: Tambahkan ini agar langsung terjumlahkan otomatis
                     'progress' => min(max($progress, 0), 100),
+                    'price' => $item->product->price
                 ];
             }
         }
@@ -98,14 +91,13 @@ class SubscriptionController extends Controller
     {
         $request->validate([
             'product_id' => 'required|exists:products,id',
-            'expected_total' => 'nullable|numeric' // Menangkap ekspektasi harga dari frontend
+            'expected_total' => 'nullable|numeric' 
         ]);
 
         $product = Product::findOrFail($request->product_id);
 
         return DB::transaction(function () use ($product, $request) {
             
-            // CEK ULANG DENDA DI BACKEND (Mencegah manipulasi di Frontend)
             $lastSubscriptionOrder = Order::with('items')
                 ->where('user_id', auth()->id())
                 ->whereIn('status', ['verified', 'shipped', 'completed', 'finished'])
@@ -123,47 +115,45 @@ class SubscriptionController extends Controller
                 $now = Carbon::now('Asia/Makassar');
 
                 if ($now->greaterThanOrEqualTo($penaltyDate)) {
-                    $penaltyFee = $product->price * 0.05; // Hitung ulang denda 5%
+                    $penaltyFee = $product->price * 0.05; 
                 }
             }
 
             $totalPrice = $product->price + $penaltyFee;
 
-            // Generate Invoice Unik
             $invoiceNumber = 'INV-SUB-' . date('Ymd') . '-' . strtoupper(Str::random(5));
 
-            // Buat Order Langsung (Status: pending_payment)
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'invoice_number' => $invoiceNumber,
-                'total_price' => $totalPrice, // Harga total sudah termasuk denda jika ada
+                'total_price' => $totalPrice, 
                 'status' => 'pending_payment', 
                 'payment_proof' => null, 
                 'address' => 'Digital Subscription (Auto Renew)', 
                 'phone' => auth()->user()->phone ?? '000', 
             ]);
 
-            // Masukkan Item ke Order (Layanan Pokok)
             OrderItem::create([
                 'order_id' => $order->id,
                 'product_id' => $product->id,
-                'product_name' => $product->name, // Nama produk diisi
+                'product_name' => $product->name, 
                 'quantity' => 1,
                 'price' => $product->price,
             ]);
 
-            // Masukkan Item Denda (Jika Ada)
             if ($penaltyFee > 0) {
                 OrderItem::create([
                     'order_id' => $order->id,
-                    'product_id' => $product->id, // Menggunakan ID produk yang sama agar tidak error
-                    'product_name' => 'Denda Keterlambatan (5%) - ' . $product->name, // Nama disesuaikan
+                    'product_id' => $product->id, 
+                    'product_name' => 'Denda Keterlambatan (5%) - ' . $product->name, 
                     'quantity' => 1,
                     'price' => $penaltyFee,
                 ]);
             }
 
-            // Arahkan ke Halaman Pesanan
+            // MENGIRIM EMAIL NOTIFIKASI KE ADMIN
+            Mail::to('anakagungekaw11@gmail.com')->send(new NewOrderNotification($order));
+
             return to_route('my-orders')->with('message', 'Tagihan berhasil dibuat. Silakan lakukan pembayaran.');
         });
     }

@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Cart;
 use App\Models\Order;
-use App\Models\OrderItem; // <--- Pastikan ini ada
+use App\Models\OrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str; // <--- Pastikan ini ada
+use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\NewOrderNotification;
 
 class CartController extends Controller
 {
@@ -71,8 +73,7 @@ class CartController extends Controller
         return redirect()->back();
     }
 
-    // === CHECKOUT FINAL (SUDAH DIPERBAIKI) ===
-    // === CHECKOUT FINAL (SUDAH DIPERBAIKI UNTUK SISTEM KODE UNIK) ===
+    // === CHECKOUT FINAL (SUDAH DIPERBAIKI UNTUK SISTEM KODE UNIK & EMAIL) ===
     public function checkout(Request $request)
     {
         // 1. Validasi Input (HAPUS VALIDASI payment_proof)
@@ -132,6 +133,9 @@ class CartController extends Controller
 
             // 7. Hapus dari Keranjang
             Cart::whereIn('id', $request->selected_cart_ids)->delete();
+
+            // 8. KIRIM EMAIL NOTIFIKASI KE ADMIN
+            Mail::to('anakagungekaw11@gmail.com')->send(new NewOrderNotification($order));
         });
 
         // Redirect ke halaman Riwayat Pesanan
